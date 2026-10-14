@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// System users (e.g., Principal, Disbursing Officer)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // Hashed password using bcrypt
+  name      String
+  role      String   @default("DISBURSING_OFFICER") // e.g., "DISBURSING_OFFICER" or "PRINCIPAL"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Tracks monthly MOOE budget allocations
+model MooeAllocation {
+  id          String   @id @default(cuid())
+  month       String   // e.g., "January 2026"
+  totalAmount Float    // Total allocated funds
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // One-to-many relationship with liquidation reports
+  expenses    LiquidationReport[]
+}
+
+// Records of specific expenditures for liquidation
+model LiquidationReport {
+  id           String   @id @default(cuid())
+  expenseType  String   // e.g., "Utilities", "Travel", "Supplies"
+  amountSpent  Float
+  description  String?  // Optional details or remarks
+  dateIncurred DateTime @default(now())
+
+  // Foreign key relationship to the parent allocation
+  allocationId String
+  allocation   MooeAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+}
+
+// Represents the total MOOE budget allocation for the school
+model Budget {
+  id          String    @id @default(cuid())
+  schoolYear  String    // e.g., "2023-2024"
+  month       String    // e.g., "January" or "Q1"
+  totalAmount Float     // Total allocated funds
+  
+  expenses    Expense[] // One-to-many relationship with expenses
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Represents individual expenditures drawn from the budget
+model Expense {
+  id          String   @id @default(cuid())
+  description String   // e.g., "Office supplies and printer ink"
+  amount      Float    // Total cost of the transaction
+  date        DateTime // Date of purchase
+  category    String   // e.g., "Office Supplies", "Travel", "Repairs"
+  
+  // Foreign key relationship to the Budget model
+  budgetId    String
+  budget      Budget   @relation(fields: [budgetId], references: [id])
+  
+  createdAt   DateTime @default(now())
+}
