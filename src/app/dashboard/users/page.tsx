@@ -4,12 +4,13 @@ import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
+import { Role } from "@prisma/client"
 
 export default async function UsersPage() {
   const session = await getServerSession(authOptions)
   
   // Security check: Only allow PRINCIPAL to access user management
-  if (!session || (session.user as any)?.role !== 'PRINCIPAL') {
+  if (!session || session.user?.role !== 'PRINCIPAL') {
     redirect('/dashboard')
   }
 
@@ -22,32 +23,56 @@ export default async function UsersPage() {
   // Server Action: Handle the creation of a new user
   async function createUser(formData: FormData) {
     'use server'
+
+    const session = await getServerSession(authOptions)
+
+    // Recheck authorization inside the Server Action
+    if (!session || session.user?.role !== 'PRINCIPAL') {
+      throw new Error('Unauthorized')
+    }
     
     const name = formData.get('name') as string
     const email = formData.get('email') as string
     const password = formData.get('password') as string
-    const role = formData.get('role') as string
+    const roleValue = formData.get('role')
 
-    if (name && email && password && role) {
-      // Check if email already exists to prevent crashes
-      const existingUser = await prisma.user.findUnique({ where: { email } })
-      
-      if (!existingUser) {
-        // Hash the password securely before saving to database
-        const hashedPassword = await bcrypt.hash(password, 10)
+    const validRoles: Role[] = [
+      'PRINCIPAL',
+      'DISBURSING_OFFICER',
+    ]
 
-        await prisma.user.create({
-          data: {
-            name,
-            email,
-            password: hashedPassword,
-            role,
-          }
-        })
-        
-        revalidatePath('/dashboard/users')
-      }
+    if (
+      !name ||
+      !email ||
+      !password ||
+      typeof roleValue !== 'string' ||
+      !validRoles.includes(roleValue as Role)
+    ) {
+      throw new Error('Invalid form data')
     }
+
+    const role = roleValue as Role
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    })
+
+    if (existingUser) {
+      throw new Error('Email already exists')
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+      },
+    })
+
+    revalidatePath('/dashboard/users')
   }
 
   return (

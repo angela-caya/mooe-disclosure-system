@@ -6,53 +6,107 @@ import { revalidatePath } from "next/cache"
 import ExportPdfButton from "./ExportPdfButton"
 
 export default async function ReportsPage() {
+  // Validate session for route protection
   const session = await getServerSession(authOptions)
-  if (!session) {
+  if (!session || !session.user) {
     redirect('/login')
   }
 
-  // Fetch available budgets for the dropdown menu
-  const allocations = await prisma.mooeAllocation.findMany({
-    orderBy: { createdAt: 'desc' }
+  const currentUserId = session.user.id;
+
+  // Fetch available budgets from the updated MonthlyAllocation model
+  const allocations = await prisma.monthlyAllocation.findMany({
+    orderBy: [{ year: 'desc' }, { month: 'desc' }]
   })
 
-  // Fetch existing liquidation reports to display in the table
-  const reports = await prisma.liquidationReport.findMany({
-    include: { allocation: true }, // Includes the parent budget data
-    orderBy: { dateIncurred: 'desc' }
+  // Fetch itemized expenses and their parent relations
+  const rawExpenses = await prisma.expense.findMany({
+    include: { 
+      report: { 
+        include: { allocation: true } 
+      } 
+    },
+    orderBy: { date: 'desc' }
   })
 
-  // Server Action: Save the new expense to the database
+  // Data Transformation: Map the new relational data back into the flat format 
+  // expected by your existing ExportPdfButton component.
+  const formattedReports = rawExpenses.map((exp) => ({
+    id: exp.id,
+    expenseType: exp.category,
+    description: exp.description,
+    amountSpent: exp.amount,
+    allocation: {
+      month: `${exp.report.month}/${exp.report.year}`, // Fallback string representation
+      totalAmount: exp.report.allocation.totalAmount
+    }
+  }))
+
+  // Server Action: Save the new expense into the relational database architecture
   async function createExpense(formData: FormData) {
     'use server'
     
     const allocationId = formData.get('allocationId') as string
-    const expenseType = formData.get('expenseType') as string
+    const expenseType = formData.get('expenseType') as "UTILITIES" | "SUPPLIES" | "MINOR_REPAIRS" | "TRAVEL" | "TRAINING" | "OTHERS"
     const amountSpent = parseFloat(formData.get('amountSpent') as string)
     const description = formData.get('description') as string
 
     if (allocationId && expenseType && amountSpent) {
-      await prisma.liquidationReport.create({
-        data: {
-          allocationId,
-          expenseType,
-          amountSpent,
-          description,
-        }
-      })
       
-      // Refresh both the reports page and the dashboard totals
+      // Retrieve the parent allocation context
+      const allocation = await prisma.monthlyAllocation.findUnique({
+        where: { id: allocationId }
+      });
+
+      if (!allocation) return;
+
+      // Locate an existing report container for this allocation, or initialize a new draft
+      let report = await prisma.liquidationReport.findFirst({
+        where: { allocationId }
+      });
+
+      if (!report) {
+        report = await prisma.liquidationReport.create({
+          data: {
+            month: allocation.month,
+            year: allocation.year,
+            allocationId,
+            status: "DRAFT",
+            disbursingOfficerId: currentUserId,
+          }
+        });
+      }
+
+      // Record the specific itemized expense mapped to the report
+      await prisma.expense.create({
+        data: {
+          reportId: report.id,
+          category: expenseType,
+          amount: amountSpent,
+          description: description || "Unspecified",
+          date: new Date()
+        }
+      });
+      
+      // Invalidate cache to refresh the UI immediately
       revalidatePath('/dashboard/reports')
       revalidatePath('/dashboard')
     }
+  }
+
+  // Helper for displaying human-readable months in the dropdown
+  const getMonthName = (monthNum: number) => {
+    const d = new Date();
+    d.setMonth(monthNum - 1);
+    return d.toLocaleString('default', { month: 'long' });
   }
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Liquidation Reports</h2>
-        {/* Render the export button and pass the reports data to it */}
-        <ExportPdfButton reports={reports} />
+        {/* Pass the transformed data that satisfies the component's strict typing */}
+        <ExportPdfButton reports={formattedReports as any} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -78,7 +132,7 @@ export default async function ReportsPage() {
                     <option value="">-- Choose Allocation --</option>
                     {allocations.map(a => (
                       <option key={a.id} value={a.id}>
-                        {a.month} (Balance: ₱{a.totalAmount})
+                        {getMonthName(a.month)} {a.year} (Budget: ₱{a.totalAmount})
                       </option>
                     ))}
                   </select>
@@ -92,11 +146,12 @@ export default async function ReportsPage() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
                   >
                     <option value="">-- Choose Category --</option>
-                    <option value="Utilities">Utilities (Water, Light, etc.)</option>
-                    <option value="Supplies">Office/School Supplies</option>
-                    <option value="Travel">Travel Expenses</option>
-                    <option value="Repairs">Repairs & Maintenance</option>
-                    <option value="Other">Other Operating Expenses</option>
+                    <option value="UTILITIES">Utilities (Water, Light, etc.)</option>
+                    <option value="SUPPLIES">Office/School Supplies</option>
+                    <option value="TRAVEL">Travel Expenses</option>
+                    <option value="MINOR_REPAIRS">Repairs & Maintenance</option>
+                    <option value="TRAINING">Training & Seminars</option>
+                    <option value="OTHERS">Other Operating Expenses</option>
                   </select>
                 </div>
 
@@ -133,14 +188,14 @@ export default async function ReportsPage() {
           </div>
         </div>
 
-        {/* Right Column: Table displaying recent liquidations */}
+        {/* Right Column: Table displaying itemized liquidations */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
               <h3 className="text-lg font-semibold text-gray-800">Recent Expenses</h3>
             </div>
             <div className="p-0">
-              {reports.length === 0 ? (
+              {rawExpenses.length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
                   No expenses recorded yet.
                 </div>
@@ -155,19 +210,19 @@ export default async function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {reports.map((report) => (
-                      <tr key={report.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    {rawExpenses.map((exp) => (
+                      <tr key={exp.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="px-6 py-4 font-medium text-gray-800">
-                          {report.expenseType}
+                          {exp.category.replace("_", " ")}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600">
-                          {report.description || "-"}
+                          {exp.description || "-"}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">
-                          {report.allocation.month}
+                          {getMonthName(exp.report.month)} {exp.report.year}
                         </td>
                         <td className="px-6 py-4 text-red-600 font-semibold">
-                          ₱{report.amountSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₱{exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
                     ))}
