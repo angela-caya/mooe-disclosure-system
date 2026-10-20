@@ -1,38 +1,33 @@
-import Sidebar from './Sidebar'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '../api/auth/[...nextauth]/route'
-import { redirect } from 'next/navigation'
+import { getServerSession } from "next-auth";
+import { authOptions } from "../api/auth/[...nextauth]/route";
+import { redirect } from "next/navigation";
+import Sidebar from "@/src/components/Sidebar";
 
 export default async function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  // Fetch active session to determine user role
-  const session = await getServerSession(authOptions)
-  
-  if (!session) {
-    redirect('/login')
+  // 1. Fetch the secure server session
+  const session = await getServerSession(authOptions);
+
+  if (!session || !session.user) {
+    redirect("/login");
   }
 
-  // Extract the role, defaulting to DISBURSING_OFFICER if undefined
-  const userRole = (session.user as any)?.role || 'DISBURSING_OFFICER'
+  // 2. Extract necessary user details
+  const userRole = session.user.role || "DISBURSING_OFFICER";
+  const userName = session.user.name || session.user.email || "User";
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Pass the userRole to the Sidebar component */}
-      <Sidebar userRole={userRole} />
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Persistent Sidebar (Client Component) */}
+      <Sidebar userName={userName} userRole={userRole} />
 
-      {/* Main Content Area on the right */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center px-8 shadow-sm">
-          <h1 className="text-xl font-semibold text-gray-800">MOOE Disclosure System</h1>
-        </header>
-
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-8">
-          {children}
-        </main>
-      </div>
+      {/* Main Content Area (Server & Client Pages inject here) */}
+      <main className="flex-1 h-screen overflow-y-auto">
+        {children}
+      </main>
     </div>
-  )
+  );
 }

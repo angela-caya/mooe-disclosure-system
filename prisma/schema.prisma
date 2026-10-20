@@ -1,72 +1,188 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
 }
 
+// --- ENUMS ---
+
+enum Role {
+  PRINCIPAL
+  DISBURSING_OFFICER
+}
+
+enum ReportStatus {
+  DRAFT
+  PENDING
+  APPROVED
+}
+
+enum ExpenseCategory {
+  UTILITIES
+  SUPPLIES
+  MINOR_REPAIRS
+  TRAVEL
+  TRAINING
+  OTHERS
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  SUBMIT
+  APPROVE
+  REJECT
+}
+
+enum AIPPlanStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+}
+
 // System users (e.g., Principal, Disbursing Officer)
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String   // Hashed password using bcrypt
-  name      String
-  role      String   @default("DISBURSING_OFFICER") // e.g., "DISBURSING_OFFICER" or "PRINCIPAL"
+  id           String  @id @default(cuid())
+  name         String?
+  email        String? @unique
+  password     String? // Hashed password
+  role         Role    @default(DISBURSING_OFFICER)
+  signatureUrl String? // Path to the Principal's e-signature for reports
+
+  // Relationship: Reports created by a Disbursing Officer
+  reportsCreated  LiquidationReport[] @relation("CreatedBy")
+  // Relationship: Reports approved by a Principal
+  reportsApproved LiquidationReport[] @relation("ApprovedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+model AIPSetting {
+  id               String @id @default(cuid())
+  year             Int    @unique
+  // Target percentages (e.g., 0.30 for 30%)
+  utilitiesPercent Float  @default(0)
+  suppliesPercent  Float  @default(0)
+  repairsPercent   Float  @default(0)
+  travelPercent    Float  @default(0)
+  trainingPercent  Float  @default(0)
+  othersPercent    Float  @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-// Tracks monthly MOOE budget allocations
-model MooeAllocation {
-  id          String   @id @default(cuid())
-  month       String   // e.g., "January 2026"
-  totalAmount Float    // Total allocated funds
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model MonthlyAllocation {
+  id          String @id @default(cuid())
+  month       Int // 1 to 12
+  year        Int
+  totalAmount Float // The actual cash allocation received for this month
 
-  // One-to-many relationship with liquidation reports
-  expenses    LiquidationReport[]
+  // Link to the monthly report
+  reports LiquidationReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([month, year])
 }
 
 // Records of specific expenditures for liquidation
 model LiquidationReport {
-  id           String   @id @default(cuid())
-  expenseType  String   // e.g., "Utilities", "Travel", "Supplies"
-  amountSpent  Float
-  description  String?  // Optional details or remarks
-  dateIncurred DateTime @default(now())
+  id      String       @id @default(cuid())
+  month   Int
+  year    Int
+  status  ReportStatus @default(DRAFT)
+  remarks String?
 
-  // Foreign key relationship to the parent allocation
+  // Ownership and Approval
+  disbursingOfficerId String
+  disbursingOfficer   User   @relation("CreatedBy", fields: [disbursingOfficerId], references: [id])
+
+  principalId String? // Populated upon approval
+  principal   User?   @relation("ApprovedBy", fields: [principalId], references: [id])
+
+  // Context: Total amount this report is drawing from
   allocationId String
-  allocation   MooeAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
-}
+  allocation   MonthlyAllocation @relation(fields: [allocationId], references: [id])
 
-// Represents the total MOOE budget allocation for the school
-model Budget {
-  id          String    @id @default(cuid())
-  schoolYear  String    // e.g., "2023-2024"
-  month       String    // e.g., "January" or "Q1"
-  totalAmount Float     // Total allocated funds
-  
-  expenses    Expense[] // One-to-many relationship with expenses
-  
+  // Itemized data
+  expenses Expense[]
+
+  submittedAt DateTime? // When status changed from DRAFT to PENDING
+  approvedAt  DateTime? // When status changed to APPROVED
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@unique([month, year]) // Ensures only one report exists per month
 }
 
 // Represents individual expenditures drawn from the budget
 model Expense {
-  id          String   @id @default(cuid())
-  description String   // e.g., "Office supplies and printer ink"
-  amount      Float    // Total cost of the transaction
-  date        DateTime // Date of purchase
-  category    String   // e.g., "Office Supplies", "Travel", "Repairs"
-  
-  // Foreign key relationship to the Budget model
-  budgetId    String
-  budget      Budget   @relation(fields: [budgetId], references: [id])
-  
-  createdAt   DateTime @default(now())
+  id          String          @id @default(cuid())
+  description String // Itemized name/description
+  amount      Float
+  date        DateTime
+  category    ExpenseCategory
+
+  // Link back to the parent report
+  reportId String
+  report   LiquidationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Immutable ledger for tracking all system activities
+model AuditLog {
+  id       String      @id @default(cuid())
+  action   AuditAction
+  entity   String // Represents the table name (e.g., LiquidationReport, Expense)
+  entityId String // The unique identifier of the modified record
+  details  String // Human-readable context of the transaction
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model AIPPlan {
+  id     String        @id @default(cuid())
+  year   Int           @unique
+  status AIPPlanStatus @default(DRAFT)
+
+  submittedAt       DateTime?
+  approvedAt        DateTime?
+  externalReference String?
+
+  budgetLines AIPBudgetLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, year])
+}
+
+model AIPBudgetLine {
+  id            String          @id @default(cuid())
+  description   String
+  category      ExpenseCategory
+  plannedAmount Decimal         @db.Decimal(15, 2)
+  remarks       String?
+
+  aipPlanId String
+  aipPlan   AIPPlan @relation(fields: [aipPlanId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([aipPlanId])
+  @@index([category])
 }
