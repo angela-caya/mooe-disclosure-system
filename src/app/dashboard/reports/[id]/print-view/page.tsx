@@ -1,17 +1,19 @@
 import prisma from "@/lib/prisma";
 import { notFound } from "next/navigation";
-import PrintButton from "@/src/components/PrintButton";
+// UX FIX: Tinanggal na natin ang import ng PrintButton dahil iframe na ang nagti-trigger ng print
 
 interface PrintReportPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function PrintReportPage({ params }: PrintReportPageProps) {
-  // Fetch the complete report with all relations
+  const resolvedParams = await params;
+  const reportId = resolvedParams.id;
+
   const report = await prisma.liquidationReport.findUnique({
-    where: { id: params.id },
+    where: { id: reportId },
     include: {
       allocation: true,
       disbursingOfficer: { select: { name: true, email: true } },
@@ -24,28 +26,18 @@ export default async function PrintReportPage({ params }: PrintReportPageProps) 
     notFound();
   }
 
-  // Calculate totals
   const totalSpent = report.expenses.reduce((sum, exp) => sum + exp.amount, 0);
   const balance = report.allocation.totalAmount - totalSpent;
 
-  // Format the month/year
   const reportDate = new Date();
   reportDate.setMonth(report.month - 1);
   const monthName = reportDate.toLocaleString('default', { month: 'long' });
 
   return (
     <div className="min-h-screen bg-gray-200 py-8 print:py-0 print:bg-white flex justify-center">
-      {/* 
-        A4 Document Container: 
-        Hidden from screen readers when not printing to avoid confusion.
-        Tailwind print:* utility classes ensure the background is white and margins disappear on paper.
-      */}
       <div className="bg-white w-[210mm] min-h-[297mm] p-12 shadow-lg print:shadow-none print:w-full print:min-h-0 print:p-0">
         
-        {/* Print Controls (Hidden on actual print) */}
-        <div className="flex justify-end mb-8 print:hidden">
-          <PrintButton />
-        </div>
+        {/* UX FIX: Tinanggal ang <PrintButton /> block dito dahil programmatic na ang printing */}
 
         {/* Formal Document Header */}
         <div className="text-center mb-8">
