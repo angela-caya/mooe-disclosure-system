@@ -5,6 +5,7 @@ import { redirect, notFound } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { logSystemAction } from "@/lib/auditLogger"
 import Link from "next/link"
+import PrintReportButton from "@/src/components/PrintReportButton"
 
 export default async function ManageExpensesPage({ 
   params 
@@ -13,17 +14,14 @@ export default async function ManageExpensesPage({
 }) {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== 'DISBURSING_OFFICER') {
-    redirect('/login');
+    redirect('/login')
   }
-  const userId = session.user.id;
 
-  // Await the asynchronous route parameters to safely extract the ID
+  const userId = session.user.id
   const resolvedParams = await params
   const allocationId = resolvedParams.id
 
-  if (!allocationId) {
-    notFound()
-  }
+  if (!allocationId) notFound()
 
   // Retrieve the allocation and its associated liquidation report
   const allocation = await prisma.monthlyAllocation.findUnique({
@@ -48,7 +46,6 @@ export default async function ManageExpensesPage({
   // Process incoming itemized expenses and enforce budget limits
   async function addExpense(formData: FormData) {
     'use server'
-    
     const amount = parseFloat(formData.get("amount") as string)
     const category = formData.get("category") as any
     const description = formData.get("description") as string
@@ -99,7 +96,6 @@ export default async function ManageExpensesPage({
   // Finalize the draft report and escalate it to the Principal for approval
   async function submitReport() {
     'use server'
-    
     if (!activeReport) return
 
     await prisma.liquidationReport.update({
@@ -151,15 +147,15 @@ export default async function ManageExpensesPage({
       
       <div className="flex justify-between items-center">
         <div>
-          <Link href="/dashboard/expenses" className="text-sm text-blue-600 hover:underline mb-2 inline-block">
+          <Link href="/dashboard/expenses" className="text-sm text-blue-600 hover:text-blue-800 font-semibold hover:underline mb-2 inline-block transition-colors">
             &larr; Back to Allocations
           </Link>
-          <h2 className="text-2xl font-bold text-gray-800">
+          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
             Manage Expenses: {getMonthName(allocation.month)} {allocation.year}
           </h2>
         </div>
         <div>
-          <span className={`px-4 py-2 rounded-full text-sm font-bold border ${isLocked ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+          <span className={`px-4 py-2 rounded-full text-sm font-bold border shadow-sm ${isLocked ? 'bg-yellow-100 text-yellow-800 border-yellow-200' : 'bg-gray-100 text-gray-800 border-gray-200'}`}>
             Status: {activeReport?.status || 'DRAFT'}
           </span>
         </div>
@@ -167,17 +163,17 @@ export default async function ManageExpensesPage({
 
       {/* Financial Overview Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-blue-500">
-          <p className="text-sm font-bold text-gray-500 uppercase">Total Allocation</p>
-          <p className="text-2xl font-black text-gray-800 mt-1">₱{allocation.totalAmount.toLocaleString()}</p>
+        <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Total Allocation</p>
+          <p className="text-2xl font-black text-gray-900 mt-1">₱{allocation.totalAmount.toLocaleString()}</p>
         </div>
-        <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-yellow-500">
-          <p className="text-sm font-bold text-gray-500 uppercase">Total Disbursed</p>
-          <p className="text-2xl font-black text-gray-800 mt-1">₱{totalSpent.toLocaleString()}</p>
+        <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-yellow-500 hover:shadow-md transition-shadow">
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Total Disbursed</p>
+          <p className="text-2xl font-black text-gray-900 mt-1">₱{totalSpent.toLocaleString()}</p>
         </div>
-        <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-green-500">
-          <p className="text-sm font-bold text-gray-500 uppercase">Remaining Balance</p>
-          <p className="text-2xl font-black text-gray-800 mt-1">₱{remainingBalance.toLocaleString()}</p>
+        <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Remaining Balance</p>
+          <p className="text-2xl font-black text-gray-900 mt-1">₱{remainingBalance.toLocaleString()}</p>
         </div>
       </div>
 
@@ -186,7 +182,7 @@ export default async function ManageExpensesPage({
         {/* Data Entry Form */}
         <div className="lg:col-span-1">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Record Receipt</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-4 border-b border-gray-100 pb-3">Record Receipt</h3>
             
             {isLocked ? (
               <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-sm font-medium border border-yellow-200">
@@ -195,12 +191,25 @@ export default async function ManageExpensesPage({
             ) : (
               <form action={addExpense} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Date on Receipt</label>
-                  <input type="date" name="date" required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  <label htmlFor="expenseDate" className="block text-sm font-semibold text-gray-700 mb-1">Date on Receipt</label>
+                  <input 
+                    id="expenseDate"
+                    type="date" 
+                    name="date" 
+                    required 
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow cursor-pointer" 
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Category</label>
-                  <select name="category" required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                  <label htmlFor="expenseCategory" className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
+                  <select 
+                    id="expenseCategory"
+                    name="category" 
+                    required
+                    defaultValue=""
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow cursor-pointer"
+                  >
+                    <option value="" disabled selected>-- Select a category --</option>
                     <option value="UTILITIES">Utilities</option>
                     <option value="SUPPLIES">Supplies & Materials</option>
                     <option value="MINOR_REPAIRS">Minor Repairs</option>
@@ -210,15 +219,36 @@ export default async function ManageExpensesPage({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Description / Payee</label>
-                  <input type="text" name="description" placeholder="e.g. Meralco Bill" required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  <label htmlFor="expenseDesc" className="block text-sm font-semibold text-gray-700 mb-1">Description / Payee</label>
+                  <input 
+                    id="expenseDesc"
+                    type="text" 
+                    name="description" 
+                    placeholder="e.g. Meralco Bill" 
+                    required 
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow" 
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Amount (₱)</label>
-                  <input type="number" name="amount" step="0.01" max={remainingBalance} required className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
-                  <p className="text-xs text-gray-500 mt-1">Maximum allowed: ₱{remainingBalance.toLocaleString()}</p>
+                  <label htmlFor="expenseAmount" className="block text-sm font-semibold text-gray-700 mb-1">Amount (₱)</label>
+                  <input 
+                    id="expenseAmount"
+                    type="number" 
+                    name="amount" 
+                    step="0.01" 
+                    max={remainingBalance} 
+                    placeholder="0.00"
+                    required 
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow" 
+                  />
+                  <p className="text-xs text-gray-500 mt-1 font-medium">Maximum allowed: ₱{remainingBalance.toLocaleString()}</p>
                 </div>
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg transition-colors mt-2">
+                
+                {/* UX: Lift and click animation on primary action */}
+                <button 
+                  type="submit" 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 mt-4 cursor-pointer"
+                >
                   + Add Expense
                 </button>
               </form>
@@ -230,21 +260,18 @@ export default async function ManageExpensesPage({
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
 
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-              <h3 className="font-bold text-gray-800">Itemized Breakdown</h3>
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <h3 className="font-bold text-gray-900 text-lg">Itemized Breakdown</h3>
               
               <div className="flex gap-2">
-                <Link 
-                  href={`/dashboard/expenses/${allocationId}/print`}
-                  target="_blank"
-                  className="px-4 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-sm font-bold rounded shadow-sm transition-colors"
-                >
-                  🖨️ Print PDF
-                </Link>
+                <PrintReportButton reportId={allocationId} />
 
                 {!isLocked && activeReport && (
                   <form action={submitReport}>
-                    <button type="submit" className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded shadow-sm transition-colors">
+                    <button 
+                      type="submit" 
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                    >
                       Submit to Principal &rarr;
                     </button>
                   </form>
@@ -256,18 +283,18 @@ export default async function ManageExpensesPage({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-200 text-sm text-gray-500 bg-white">
-                    <th className="px-6 py-3 font-bold">Date</th>
-                    <th className="px-6 py-3 font-bold">Category</th>
-                    <th className="px-6 py-3 font-bold">Description</th>
-                    <th className="px-6 py-3 font-bold text-right">Amount</th>
+                    <th className="px-6 py-3 font-semibold">Date</th>
+                    <th className="px-6 py-3 font-semibold">Category</th>
+                    <th className="px-6 py-3 font-semibold">Description</th>
+                    <th className="px-6 py-3 font-semibold text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {currentExpenses?.map((exp: any) => (
-                    <tr key={exp.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-600">{exp.date.toLocaleDateString()}</td>
-                      <td className="px-6 py-4 font-bold text-gray-700">{exp.category.replace("_", " ")}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{exp.description}</td>
+                    <tr key={exp.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 text-sm text-gray-700">{exp.date.toLocaleDateString()}</td>
+                      <td className="px-6 py-4 font-semibold text-gray-900">{exp.category.replace("_", " ")}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{exp.description}</td>
                       <td className="px-6 py-4 text-right text-red-600 font-bold">
                         ₱{exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
@@ -275,14 +302,18 @@ export default async function ManageExpensesPage({
                         <td className="px-6 py-4 text-right flex justify-end gap-1">
                           <Link 
                             href={`/dashboard/expenses/${allocationId}/edit/${exp.id}`}
-                            className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-50 rounded transition-colors" 
+                            className="text-blue-500 hover:text-blue-700 p-2 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer" 
                             title="Edit Expense"
                           >
                             ✏️
                           </Link>
                           <form action={deleteExpense}>
                             <input type="hidden" name="expenseId" value={exp.id} />
-                            <button type="submit" className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded transition-colors" title="Delete Expense">
+                            <button 
+                              type="submit" 
+                              className="text-red-500 hover:text-red-700 p-2 hover:bg-red-100 rounded-lg transition-colors cursor-pointer" 
+                              title="Delete Expense"
+                            >
                               🗑️
                             </button>
                           </form>
@@ -291,11 +322,11 @@ export default async function ManageExpensesPage({
                     </tr>
                   ))}
                   <tr className="bg-gray-50">
-                    <td colSpan={3} className="px-6 py-5 text-right font-bold text-gray-800 uppercase tracking-wide">Total Disbursed:</td>
-                    <td className="px-6 py-5 text-right font-black text-xl text-gray-800 border-t-2 border-gray-200">
+                    <td colSpan={3} className="px-6 py-5 text-right font-bold text-gray-700 uppercase tracking-wide">Total Disbursed:</td>
+                    <td className="px-6 py-5 text-right font-black text-xl text-gray-900 border-t-2 border-gray-300">
                       ₱{totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
-                    {!isLocked && <td className="bg-gray-50 border-t-2 border-gray-200"></td>}
+                    {!isLocked && <td className="bg-gray-50 border-t-2 border-gray-300"></td>}
                   </tr>
                 </tbody>
               </table>

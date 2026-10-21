@@ -48,31 +48,34 @@ export default function LoginPage() {
   if (isCheckingSession) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500">Sinusuri ang account...</p>
+        <p className="text-gray-500 font-medium">Sinusuri ang account...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      {/* UX: Added lift and shadow transitions to the login card */}
+      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md border border-gray-100 transition-all duration-300 hover:shadow-xl">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">MOOE Portal</h1>
-          <p className="text-sm text-gray-500 mt-2">Mag-login para i-manage ang budget</p>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">MOOE Portal</h1>
+          <p className="text-sm text-gray-500 mt-2 font-medium">Mag-login para i-manage ang budget</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-5">
           {error && (
-            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
+            <div className="p-4 bg-red-50 text-red-700 text-sm font-medium rounded-lg border border-red-200 shadow-sm animate-pulse">
               {error}
             </div>
           )}
 
+          {/* UX: Proper label associations and dark input text */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+            <label htmlFor="loginEmail" className="block text-sm font-bold text-gray-700 mb-1.5">Email Address</label>
             <input 
+              id="loginEmail"
               type="email" 
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow bg-gray-50 focus:bg-white"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@school.edu.ph"
@@ -82,10 +85,11 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label htmlFor="loginPassword" className="block text-sm font-bold text-gray-700 mb-1.5">Password</label>
             <input 
+              id="loginPassword"
               type="password" 
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow bg-gray-50 focus:bg-white"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -94,11 +98,14 @@ export default function LoginPage() {
             />
           </div>
 
+          {/* UX: Button lift, pointer, and clear disabled states */}
           <button 
             type="submit" 
             disabled={isLoading}
-            className={`w-full text-white font-semibold py-2.5 rounded-lg transition-colors shadow-sm flex justify-center items-center ${
-              isLoading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+            className={`w-full text-white font-bold py-3.5 rounded-xl transition-all duration-200 shadow-sm flex justify-center items-center text-lg ${
+              isLoading 
+                ? 'bg-blue-400 cursor-wait' 
+                : 'bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer'
             }`}
           >
             {isLoading ? (

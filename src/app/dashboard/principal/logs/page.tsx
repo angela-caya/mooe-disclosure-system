@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../api/auth/[...nextauth]/route";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -35,17 +36,25 @@ export default async function AuditLogsPage() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-800">System Audit Logs</h1>
-        <p className="text-gray-600">Immutable record of system transactions and user activities.</p>
+    <div className="p-4 md:p-8 max-w-6xl mx-auto">
+      <div className="mb-6">
+        {/* UX: Added back link for better navigation flow */}
+        <Link 
+          href="/dashboard/principal" 
+          className="text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline mb-2 inline-flex items-center transition-colors cursor-pointer"
+        >
+          &larr; Back to Dashboard
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">System Audit Logs</h1>
+        <p className="text-gray-600 mt-1 text-sm">Immutable record of system transactions and user activities.</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      {/* UX: Added shadow transition to the main container */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-300">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-600">
+              <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-500 uppercase tracking-wider">
                 <th className="px-6 py-4 font-semibold">Timestamp</th>
                 <th className="px-6 py-4 font-semibold">User</th>
                 <th className="px-6 py-4 font-semibold">Action</th>
@@ -56,29 +65,30 @@ export default async function AuditLogsPage() {
             <tbody className="text-sm">
               {logs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-10 text-center text-gray-500">
+                    <span className="text-3xl mb-2 block">📋</span>
                     No system activity recorded yet.
                   </td>
                 </tr>
               ) : (
                 logs.map((log) => (
                   <tr key={log.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
+                    <td className="px-6 py-4 text-gray-600 whitespace-nowrap align-top">
                       {log.createdAt.toLocaleString()}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-gray-800">{log.user?.name || log.user?.email}</div>
-                      <div className="text-xs text-gray-500">{log.user?.role.replace("_", " ")}</div>
+                    <td className="px-6 py-4 align-top">
+                      <div className="font-semibold text-gray-900">{log.user?.name || log.user?.email}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{log.user?.role.replace("_", " ")}</div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getActionBadge(log.action)}`}>
+                    <td className="px-6 py-4 align-top">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold border shadow-sm ${getActionBadge(log.action)}`}>
                         {log.action}
                       </span>
                     </td>
-                    <td className="px-6 py-4 font-medium text-gray-600">
+                    <td className="px-6 py-4 font-semibold text-gray-700 align-top">
                       {log.entity}
                     </td>
-                    <td className="px-6 py-4 text-gray-600">
+                    <td className="px-6 py-4 text-gray-700 align-top">
                       {log.details}
                     </td>
                   </tr>
