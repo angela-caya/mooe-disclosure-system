@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import ExportPdfButton from "../../../components/ExportPdfButton"
+import PrintReportButton from "@/src/components/PrintReportButton"
 
 export default async function ReportsPage() {
   // Validate session for route protection
@@ -28,19 +28,6 @@ export default async function ReportsPage() {
     },
     orderBy: { date: 'desc' }
   })
-
-  // Data Transformation: Map the new relational data back into the flat format 
-  // expected by your existing ExportPdfButton component.
-  const formattedReports = rawExpenses.map((exp) => ({
-    id: exp.id,
-    expenseType: exp.category,
-    description: exp.description,
-    amountSpent: exp.amount,
-    allocation: {
-      month: `${exp.report.month}/${exp.report.year}`, // Fallback string representation
-      totalAmount: exp.report.allocation.totalAmount
-    }
-  }))
 
   // Server Action: Save the new expense into the relational database architecture
   async function createExpense(formData: FormData) {
@@ -105,8 +92,6 @@ export default async function ReportsPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-800">Liquidation Reports</h2>
-        {/* Pass the transformed data that satisfies the component's strict typing */}
-        <ExportPdfButton reports={formattedReports as any} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -123,11 +108,12 @@ export default async function ReportsPage() {
             ) : (
               <form action={createExpense} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Budget Month</label>
+                  <label htmlFor="allocationId" className="block text-sm font-medium text-gray-700 mb-1">Select Budget Month</label>
                   <select 
+                    id="allocationId"
                     name="allocationId" 
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 cursor-pointer"
                   >
                     <option value="">-- Choose Allocation --</option>
                     {allocations.map(a => (
@@ -139,11 +125,12 @@ export default async function ReportsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Expense Category</label>
+                  <label htmlFor="expenseType" className="block text-sm font-medium text-gray-700 mb-1">Expense Category</label>
                   <select 
+                    id="expenseType"
                     name="expenseType" 
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 cursor-pointer"
                   >
                     <option value="">-- Choose Category --</option>
                     <option value="UTILITIES">Utilities (Water, Light, etc.)</option>
@@ -156,30 +143,32 @@ export default async function ReportsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount Spent (₱)</label>
+                  <label htmlFor="amountSpent" className="block text-sm font-medium text-gray-700 mb-1">Amount Spent (₱)</label>
                   <input 
+                    id="amountSpent"
                     type="number" 
                     name="amountSpent"
                     step="0.01"
                     placeholder="0.00" 
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
                   <textarea 
+                    id="description"
                     name="description"
                     rows={2}
                     placeholder="e.g., Meralco Bill, Bond paper..." 
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none text-gray-900"
                   ></textarea>
                 </div>
 
                 <button 
                   type="submit" 
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition-colors"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-sm"
                 >
                   Save Liquidation
                 </button>
@@ -191,7 +180,7 @@ export default async function ReportsPage() {
         {/* Right Column: Table displaying itemized liquidations */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-800">Recent Expenses</h3>
             </div>
             <div className="p-0">
@@ -200,34 +189,41 @@ export default async function ReportsPage() {
                   No expenses recorded yet.
                 </div>
               ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-gray-200 text-sm text-gray-600">
-                      <th className="px-6 py-3 font-medium">Category</th>
-                      <th className="px-6 py-3 font-medium">Description</th>
-                      <th className="px-6 py-3 font-medium">Budget Month</th>
-                      <th className="px-6 py-3 font-medium">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rawExpenses.map((exp) => (
-                      <tr key={exp.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-6 py-4 font-medium text-gray-800">
-                          {exp.category.replace("_", " ")}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {exp.description || "-"}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          {getMonthName(exp.report.month)} {exp.report.year}
-                        </td>
-                        <td className="px-6 py-4 text-red-600 font-semibold">
-                          ₱{exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-sm text-gray-600 bg-white">
+                        <th className="px-6 py-3 font-medium">Category</th>
+                        <th className="px-6 py-3 font-medium">Description</th>
+                        <th className="px-6 py-3 font-medium">Budget Month</th>
+                        <th className="px-6 py-3 font-medium text-right">Amount</th>
+                        <th className="px-6 py-3 font-medium text-center">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {rawExpenses.map((exp) => (
+                        <tr key={exp.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 font-semibold text-gray-900">
+                            {exp.category.replace("_", " ")}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            {exp.description || "-"}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {getMonthName(exp.report.month)} {exp.report.year}
+                          </td>
+                          <td className="px-6 py-4 text-red-600 font-bold text-right">
+                            ₱{exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-6 py-4 flex justify-center">
+                            {/* UX FIX: Render the One-Click Print Button dynamically for the correct parent allocation */}
+                            <PrintReportButton reportId={exp.report.allocationId} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
