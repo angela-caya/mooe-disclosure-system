@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "../../api/auth/[...nextauth]/route"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import ExportPdfButton from "./ExportPdfButton"
+import ExportPdfButton from "../../../components/ExportPdfButton"
 
 export default async function ReportsPage() {
   // Validate session for route protection

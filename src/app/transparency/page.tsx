@@ -9,7 +9,7 @@ export default async function TransparencyBoard() {
     orderBy: [{ year: 'asc' }, { month: 'asc' }]
   });
 
-  // FIX: I-include ang allocation table para makuha ang tamang month at year
+  // Fetch approved expenses with parent relation for date grouping
   const expenses = await prisma.expense.findMany({
     where: {
       report: { status: "APPROVED" }
