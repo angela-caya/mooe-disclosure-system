@@ -209,7 +209,7 @@ export default async function ManageExpensesPage({
                     defaultValue=""
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow cursor-pointer"
                   >
-                    <option value="" disabled selected>-- Select a category --</option>
+                    <option value="" disabled>-- Select a category --</option>
                     <option value="UTILITIES">Utilities</option>
                     <option value="SUPPLIES">Supplies & Materials</option>
                     <option value="MINOR_REPAIRS">Minor Repairs</option>
@@ -244,7 +244,6 @@ export default async function ManageExpensesPage({
                   <p className="text-xs text-gray-500 mt-1 font-medium">Maximum allowed: ₱{remainingBalance.toLocaleString()}</p>
                 </div>
                 
-                {/* UX: Lift and click animation on primary action */}
                 <button 
                   type="submit" 
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 mt-4 cursor-pointer"

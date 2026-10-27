@@ -5,6 +5,7 @@ import Link from "next/link";
 
 interface AllocationsClientProps {
   allocations: any[];
+  signatories: any[]; // Prop para sa signatory dropdowns
   createDraft: (formData: FormData) => Promise<void>;
 }
 
@@ -15,7 +16,7 @@ const MONTHS = [
   { val: 10, label: "October" }, { val: 11, label: "November" }, { val: 12, label: "December" }
 ];
 
-export default function AllocationsClient({ allocations, createDraft }: AllocationsClientProps) {
+export default function AllocationsClient({ allocations, signatories, createDraft }: AllocationsClientProps) {
   const availableYears = Array.from(new Set(allocations.map(a => a.year))).sort((a, b) => b - a);
   const currentYear = new Date().getFullYear();
   const defaultYear = availableYears.includes(currentYear) ? currentYear : (availableYears[0] || currentYear);
@@ -30,17 +31,15 @@ export default function AllocationsClient({ allocations, createDraft }: Allocati
     "APPROVED": true
   });
 
-  const toggleExpand = (id: string) => {
-    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  // I-group ang signatories base sa position
+  const principals = useMemo(() => signatories.filter(s => s.position?.toLowerCase().includes("principal")), [signatories]);
+  const asds = useMemo(() => signatories.filter(s => s.position?.toLowerCase().includes("asds") || s.position?.toLowerCase().includes("assistant schools division")), [signatories]);
+  const sds = useMemo(() => signatories.filter(s => s.position?.toLowerCase().includes("sds") || s.position?.toLowerCase().includes("superintendent") || s.position?.toLowerCase().includes("officer-in-charge")), [signatories]);
+  const accountants = useMemo(() => signatories.filter(s => s.position?.toLowerCase().includes("accountant") || s.position?.toLowerCase().includes("accounting")), [signatories]);
 
-  const handleFilterToggle = (status: keyof typeof filters) => {
-    setFilters(prev => ({ ...prev, [status]: !prev[status] }));
-  };
-
-  const getMonthName = (monthNum: number) => {
-    return MONTHS.find(m => m.val === monthNum)?.label || "Unknown";
-  };
+  const toggleExpand = (id: string) => setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  const handleFilterToggle = (status: keyof typeof filters) => setFilters(prev => ({ ...prev, [status]: !prev[status] }));
+  const getMonthName = (monthNum: number) => MONTHS.find(m => m.val === monthNum)?.label || "Unknown";
 
   const filteredAllocations = useMemo(() => {
     return allocations.filter(alloc => {
@@ -59,6 +58,7 @@ export default function AllocationsClient({ allocations, createDraft }: Allocati
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       
+      {/* HEADER & FILTERS */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-gray-200 pb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Manage Allocations</h1>
@@ -67,7 +67,6 @@ export default function AllocationsClient({ allocations, createDraft }: Allocati
 
         <div className="flex flex-col items-end gap-3 w-full md:w-auto">
           <div className="flex items-center gap-3">
-            {/* UX: Filter Dropdown */}
             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-300 shadow-sm hover:border-blue-400 transition-colors cursor-pointer">
               <label htmlFor="yearFilter" className="text-sm font-semibold text-gray-500 uppercase cursor-pointer">Fiscal Year:</label>
               <select 
@@ -84,10 +83,9 @@ export default function AllocationsClient({ allocations, createDraft }: Allocati
               </select>
             </div>
             
-            {/* UX: Subtle Lift Animation on Button */}
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-4 rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 text-sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1.5 px-4 rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 text-sm cursor-pointer"
             >
               + New Draft
             </button>
@@ -116,6 +114,7 @@ export default function AllocationsClient({ allocations, createDraft }: Allocati
         </div>
       </div>
 
+      {/* ALLOCATIONS LIST */}
       {filteredAllocations.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-10 text-center text-gray-500 flex flex-col items-center">
           <span className="text-4xl mb-3">📭</span>
@@ -132,7 +131,6 @@ export default function AllocationsClient({ allocations, createDraft }: Allocati
             const isExpanded = expandedCards[alloc.id];
             
             return (
-              // UX: Card lift effect
               <div key={alloc.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col h-full hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                 
                 <div className="flex justify-between items-start mb-4">
@@ -207,71 +205,124 @@ export default function AllocationsClient({ allocations, createDraft }: Allocati
         </div>
       )}
 
-      {/* UX: Modal form fields with explicit ids, htmlFors, and text-gray-900 */}
+      {/* NEW DRAFT MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-transform">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-transform flex flex-col max-h-[90vh]">
+            
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
               <h3 className="font-bold text-gray-800 text-lg tracking-tight">Initialize New Draft</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-700 font-bold text-2xl leading-none cursor-pointer transition-colors">&times;</button>
             </div>
             
-            <form action={handleCreateDraft} className="p-6 space-y-5">
-              <div>
-                <label htmlFor="modalYear" className="block text-sm font-semibold text-gray-700 mb-1">Fiscal Year</label>
-                <input 
-                  id="modalYear"
-                  type="number" 
-                  name="year" 
-                  defaultValue={currentYear} 
-                  required 
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-                />
-              </div>
+            <div className="overflow-y-auto flex-grow">
+              <form action={handleCreateDraft} className="p-6">
+                
+                {/* SECTION 1: Core Budget Details */}
+                <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3">1. Budget Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div>
+                    <label htmlFor="modalYear" className="block text-sm font-semibold text-gray-700 mb-1">Fiscal Year</label>
+                    <input 
+                      id="modalYear" type="number" name="year" defaultValue={currentYear} required 
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="modalMonth" className="block text-sm font-semibold text-gray-700 mb-1">Target Month</label>
+                    <select 
+                      id="modalMonth" name="month" required 
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white outline-none cursor-pointer"
+                    >
+                      {MONTHS.map(m => <option key={m.val} value={m.val}>{m.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="modalAmount" className="block text-sm font-semibold text-gray-700 mb-1">Allocation (₱)</label>
+                    <input 
+                      id="modalAmount" type="number" name="totalAmount" step="0.01" placeholder="0.00" required 
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white outline-none"
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <label htmlFor="modalMonth" className="block text-sm font-semibold text-gray-700 mb-1">Target Month</label>
-                <select 
-                  id="modalMonth"
-                  name="month" 
-                  required 
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer transition-shadow"
-                >
-                  {MONTHS.map(m => (
-                    <option key={m.val} value={m.val}>{m.label}</option>
-                  ))}
-                </select>
-              </div>
+                <hr className="border-gray-200 mb-6" />
 
-              <div>
-                <label htmlFor="modalAmount" className="block text-sm font-semibold text-gray-700 mb-1">Budget Allocation (₱)</label>
-                <input 
-                  id="modalAmount"
-                  type="number" 
-                  name="totalAmount" 
-                  step="0.01" 
-                  placeholder="e.g. 50000"
-                  required 
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-                />
-              </div>
+                {/* SECTION 2: Appendix 44 Configurations */}
+                <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3">2. Appendix 44 Metadata</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Fund Purpose</label>
+                    <select name="fundPurpose" className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none bg-white cursor-pointer">
+                      <option value="MOOE">MOOE</option>
+                      <option value="SNED">SNED</option>
+                      <option value="SBFP">SBFP (Feeding)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">DV No.</label>
+                    <input type="text" name="dvNumber" placeholder="e.g. 2026-03-00329" className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">BIR Tax (₱)</label>
+                    <input type="number" name="birDeduction" step="0.01" defaultValue="0" className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none" />
+                  </div>
+                </div>
 
-              <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-6">
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)} 
-                  className="px-5 py-2.5 text-gray-600 font-semibold hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-                >
-                  Create Draft
-                </button>
-              </div>
-            </form>
+                <hr className="border-gray-200 mb-6" />
+
+                {/* SECTION 3: Signatories */}
+                <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-3">3. Report Signatories</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Box A: Principal</label>
+                    <select name="principalId" className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none bg-white cursor-pointer">
+                      {principals.map(p => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Box C: Accountant</label>
+                    <select name="accountantId" className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none bg-white cursor-pointer">
+                      {accountants.map(p => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Box B: ASDS</label>
+                    <select name="asdsId" className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none bg-white cursor-pointer">
+                      {asds.map(p => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Box B: SDS / OIC</label>
+                    <select name="sdsId" className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none bg-white cursor-pointer">
+                      {sds.map(p => <option key={p.id} value={p.id}>{p.name} ({p.position})</option>)}
+                    </select>
+                  </div>
+
+                </div>
+
+                <div className="pt-6 flex justify-end gap-3 border-t border-gray-100 mt-6">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)} 
+                    className="px-5 py-2.5 text-gray-600 font-semibold hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                  >
+                    Initialize Draft
+                  </button>
+                </div>
+
+              </form>
+            </div>
           </div>
         </div>
       )}

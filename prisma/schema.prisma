@@ -43,6 +43,8 @@ enum AIPPlanStatus {
   APPROVED
 }
 
+// --- MODELS ---
+
 // System users (e.g., Principal, Disbursing Officer)
 model User {
   id           String  @id @default(cuid())
@@ -61,6 +63,17 @@ model User {
   updatedAt DateTime @updatedAt
 
   auditLogs AuditLog[]
+}
+
+// Table for dynamic signatories (Appendix 44 selections)
+model Signatory {
+  id        String   @id @default(cuid())
+  name      String
+  position  String   // Expected values: "PRINCIPAL", "ASDS", "SDS", "ACCOUNTANT"
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AIPSetting {
@@ -95,11 +108,32 @@ model MonthlyAllocation {
 
 // Records of specific expenditures for liquidation
 model LiquidationReport {
-  id      String       @id @default(cuid())
-  month   Int
-  year    Int
-  status  ReportStatus @default(DRAFT)
-  remarks String?
+  id                String       @id @default(cuid())
+  month             Int
+  year              Int
+  status            ReportStatus @default(DRAFT)
+  remarks           String?
+
+  // Appendix 44 Fields & Signatory Snapshots (Name & Position)
+  yearlySequence    Int       @default(1)
+  fundPurpose       String    @default("MOOE")
+  birDeduction      Float     @default(0)
+  dvNumber          String?
+  dvDate            DateTime?
+
+  principalName     String?
+  principalPosition String?   // Box A Position (e.g. Principal II)
+  asdsName          String?
+  asdsPosition      String?   // Box B Position (e.g. ASDS / OIC)
+  sdsName           String?
+  sdsPosition       String?   // Box B Position (e.g. Schools Division Superintendent)
+  accountantName    String?
+  accountantPosition String?  // Box C Position (e.g. Head, Accounting Division Unit)
+  
+  entityName        String    @default("BINAN CITY SENIOR HIGH SCHOOL-WEST CAMPUS")
+  fundCluster       String    @default("01")
+  centerCode        String    @default("070010804019")
+  // -----------------------------------
 
   // Ownership and Approval
   disbursingOfficerId String

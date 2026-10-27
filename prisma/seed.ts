@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 import { PrismaClient, Prisma, Role, ReportStatus, ExpenseCategory, AIPPlanStatus, AuditAction } from "@prisma/client";
 import { Pool } from "pg";
@@ -45,6 +44,21 @@ async function main() {
       role: Role.DISBURSING_OFFICER,
     },
   });
+
+  // 1.5 Create or reuse Signatories for Appendix 44 with Dynamic Positions
+  const signatoryData = [
+    { name: "JEANETTE O. ALVAREZ", position: "Principal II" },
+    { name: "ARLENE S. RICASATA, CESO VI", position: "Assistant Schools Division Superintendent" },
+    { name: "MA. OLIVIA E. MIRANDA", position: "Officer-in-Charge / Schools Division Superintendent" },
+    { name: "JUAN DELA CRUZ, CPA", position: "Head, Accounting Division Unit" },
+  ];
+
+  for (const sig of signatoryData) {
+    const existing = await prisma.signatory.findFirst({ where: { name: sig.name } });
+    if (!existing) {
+      await prisma.signatory.create({ data: sig });
+    }
+  }
 
   // 2. Create or reuse the AIP percentage settings.
   await prisma.aIPSetting.upsert({
@@ -138,7 +152,7 @@ async function main() {
   const allocationData = [
     { month: 1, year: SEED_YEAR, totalAmount: 50000 },
     { month: 2, year: SEED_YEAR, totalAmount: 50000 },
-    { month: 3, year: SEED_YEAR, totalAmount: 50000 },
+    { month: 3, year: SEED_YEAR, totalAmount: 99831.62 }, // Adjusted to match Appendix 44 example
   ];
 
   const allocations = new Map<number, string>();
@@ -158,7 +172,7 @@ async function main() {
     allocations.set(item.month, allocation.id);
   }
 
-  // 6. Create or reuse monthly liquidation reports.
+  // 6. Create or reuse monthly liquidation reports (Updated with Name & Position Snapshots).
   const reportDefinitions = [
     {
       month: 1,
@@ -167,6 +181,19 @@ async function main() {
       submittedAt: new Date(`${SEED_YEAR}-01-28T00:00:00Z`),
       approvedAt: new Date(`${SEED_YEAR}-01-30T00:00:00Z`),
       principalId: principal.id,
+      yearlySequence: 1,
+      fundPurpose: "MOOE",
+      birDeduction: 1250.00,
+      dvNumber: "2026-01-00100",
+      dvDate: new Date(`${SEED_YEAR}-01-25T00:00:00Z`),
+      principalName: "JEANETTE O. ALVAREZ",
+      principalPosition: "Principal II",
+      asdsName: "ARLENE S. RICASATA, CESO VI",
+      asdsPosition: "Assistant Schools Division Superintendent",
+      sdsName: "MA. OLIVIA E. MIRANDA",
+      sdsPosition: "Officer-in-Charge / Schools Division Superintendent",
+      accountantName: "JUAN DELA CRUZ, CPA",
+      accountantPosition: "Head, Accounting Division Unit"
     },
     {
       month: 2,
@@ -175,14 +202,40 @@ async function main() {
       submittedAt: new Date(`${SEED_YEAR}-02-25T00:00:00Z`),
       approvedAt: null,
       principalId: null,
+      yearlySequence: 2,
+      fundPurpose: "MOOE",
+      birDeduction: 800.00,
+      dvNumber: "2026-02-00210",
+      dvDate: new Date(`${SEED_YEAR}-02-22T00:00:00Z`),
+      principalName: "JEANETTE O. ALVAREZ",
+      principalPosition: "Principal II",
+      asdsName: "ARLENE S. RICASATA, CESO VI",
+      asdsPosition: "Assistant Schools Division Superintendent",
+      sdsName: "MA. OLIVIA E. MIRANDA",
+      sdsPosition: "Officer-in-Charge / Schools Division Superintendent",
+      accountantName: "JUAN DELA CRUZ, CPA",
+      accountantPosition: "Head, Accounting Division Unit"
     },
     {
       month: 3,
       status: ReportStatus.DRAFT,
-      remarks: "Sample draft report",
+      remarks: "Sample draft report based on Appendix 44",
       submittedAt: null,
       approvedAt: null,
       principalId: null,
+      yearlySequence: 3,
+      fundPurpose: "MOOE",
+      birDeduction: 4182.88,
+      dvNumber: "2026-03-00329",
+      dvDate: new Date(`${SEED_YEAR}-03-23T00:00:00Z`),
+      principalName: "JEANETTE O. ALVAREZ",
+      principalPosition: "Principal II",
+      asdsName: "ARLENE S. RICASATA, CESO VI",
+      asdsPosition: "Assistant Schools Division Superintendent",
+      sdsName: "MA. OLIVIA E. MIRANDA",
+      sdsPosition: "Officer-in-Charge / Schools Division Superintendent",
+      accountantName: "JUAN DELA CRUZ, CPA",
+      accountantPosition: "Head, Accounting Division Unit"
     },
   ];
 
@@ -213,6 +266,20 @@ async function main() {
         principalId: item.principalId,
         allocationId,
         disbursingOfficerId: officer.id,
+        // Appendix 44 Fields & Position Snapshots
+        yearlySequence: item.yearlySequence,
+        fundPurpose: item.fundPurpose,
+        birDeduction: item.birDeduction,
+        dvNumber: item.dvNumber,
+        dvDate: item.dvDate,
+        principalName: item.principalName,
+        principalPosition: item.principalPosition,
+        asdsName: item.asdsName,
+        asdsPosition: item.asdsPosition,
+        sdsName: item.sdsName,
+        sdsPosition: item.sdsPosition,
+        accountantName: item.accountantName,
+        accountantPosition: item.accountantPosition
       },
     });
 
@@ -270,12 +337,62 @@ async function main() {
       category: ExpenseCategory.TRAINING,
       date: new Date(`${SEED_YEAR}-02-18T00:00:00Z`),
     },
+    // March Expenses Matching the Appendix 44 Example
     {
       month: 3,
-      description: "Office Cleaning Supplies",
-      amount: 3500,
+      description: "Seminar Workshop Expenses",
+      amount: 6000,
+      category: ExpenseCategory.TRAINING,
+      date: new Date(`${SEED_YEAR}-03-05T00:00:00Z`),
+    },
+    {
+      month: 3,
+      description: "Accountable Forms Expenses",
+      amount: 1200,
       category: ExpenseCategory.SUPPLIES,
+      date: new Date(`${SEED_YEAR}-03-08T00:00:00Z`),
+    },
+    {
+      month: 3,
+      description: "Telephone Expenses - Mobile",
+      amount: 1900,
+      category: ExpenseCategory.UTILITIES,
       date: new Date(`${SEED_YEAR}-03-10T00:00:00Z`),
+    },
+    {
+      month: 3,
+      description: "Telephone Expenses - Landline",
+      amount: 2088,
+      category: ExpenseCategory.UTILITIES,
+      date: new Date(`${SEED_YEAR}-03-11T00:00:00Z`),
+    },
+    {
+      month: 3,
+      description: "Internet Subscription Expenses",
+      amount: 2088,
+      category: ExpenseCategory.UTILITIES,
+      date: new Date(`${SEED_YEAR}-03-12T00:00:00Z`),
+    },
+    {
+      month: 3,
+      description: "Janitorial Services",
+      amount: 26400,
+      category: ExpenseCategory.OTHERS,
+      date: new Date(`${SEED_YEAR}-03-15T00:00:00Z`),
+    },
+    {
+      month: 3,
+      description: "Fidelity Bond Premiums",
+      amount: 1588.50,
+      category: ExpenseCategory.OTHERS,
+      date: new Date(`${SEED_YEAR}-03-18T00:00:00Z`),
+    },
+    {
+      month: 3,
+      description: "Other Maintenance and Operating Expenses",
+      amount: 62750,
+      category: ExpenseCategory.OTHERS,
+      date: new Date(`${SEED_YEAR}-03-20T00:00:00Z`),
     },
   ];
 

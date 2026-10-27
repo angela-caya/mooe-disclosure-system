@@ -15,11 +15,13 @@ export default function Sidebar({ userName, userRole }: SidebarProps) {
   const disbursingLinks = [
     { name: "Dashboard Overview", href: "/dashboard", icon: "📊" },
     { name: "Budget & Expenses", href: "/dashboard/expenses", icon: "💸" },
+    { name: "System Settings", href: "/dashboard/settings", icon: "⚙️" },
   ];
 
   const principalLinks = [
     { name: "Approval Dashboard", href: "/dashboard/principal", icon: "✅" },
-    { name: "AIP Settings", href: "/dashboard/principal/settings", icon: "⚙️" },
+    { name: "AIP Settings", href: "/dashboard/principal/settings", icon: "📋" },
+    { name: "System Settings", href: "/dashboard/settings", icon: "⚙️" },
     { name: "System Audit Logs", href: "/dashboard/principal/logs", icon: "📜" },
   ];
 
@@ -43,7 +45,7 @@ export default function Sidebar({ userName, userRole }: SidebarProps) {
 
       <nav className="flex-1 px-4 py-6 space-y-2">
         {navLinks.map((link) => {
-          const isActive = pathname === link.href;
+          const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
           return (
             <Link
               key={link.name}
