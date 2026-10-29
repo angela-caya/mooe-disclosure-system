@@ -15,15 +15,16 @@ export default function Sidebar({ userName, userRole }: SidebarProps) {
     { title: "Dashboard Overview", href: "/dashboard", icon: "📊", roles: ["PRINCIPAL", "DISBURSING_OFFICER", "SYSTEM_ADMIN"] },
     { title: "Manage Expenses", href: "/dashboard/expenses", icon: "💸", roles: ["DISBURSING_OFFICER", "PRINCIPAL", "SYSTEM_ADMIN"] },
     { title: "AIP / APP", href: "/dashboard/aip", icon: "📊", roles: ["SYSTEM_ADMIN", "PRINCIPAL", "DISBURSING_OFFICER"] },
-    // NEW: Budget Adjustments Menu
     { title: "Budget Adjustments", href: "/dashboard/adjustments", icon: "🔄", roles: ["SYSTEM_ADMIN", "PRINCIPAL", "DISBURSING_OFFICER"] },
     { title: "Approval Inbox", href: "/dashboard/approvals", icon: "⚖️", roles: ["PRINCIPAL"] },
+    // Binalik ang User Management
+    { title: "User Management", href: "/dashboard/users", icon: "👥", roles: ["PRINCIPAL", "SYSTEM_ADMIN"] },
     { title: "Audit Logs", href: "/dashboard/audit", icon: "📜", roles: ["PRINCIPAL", "SYSTEM_ADMIN"] },
     { title: "Settings", href: "/dashboard/settings", icon: "⚙️", roles: ["PRINCIPAL", "SYSTEM_ADMIN"] }
   ]
 
   return (
-    <aside className="w-64 bg-blue-900 text-white flex flex-col h-screen sticky top-0 shadow-xl hidden md:flex">
+    <aside className="hidden md:flex flex-col w-64 bg-blue-900 text-white h-screen sticky top-0 shadow-xl">
       <div className="p-4 sm:p-6 border-b border-blue-800 flex items-center gap-3">
         <div className="w-9 sm:w-10 aspect-square rounded-full flex items-center justify-center overflow-hidden bg-white/20 backdrop-blur-sm shadow-sm shrink-0">
           <img src="/logo.png" alt="Logo" className="w-full h-full object-contain m-auto p-1" />
@@ -34,7 +35,6 @@ export default function Sidebar({ userName, userRole }: SidebarProps) {
         </div>
       </div>
 
-      {/* Added custom-scrollbar class here */}
       <div className="px-4 py-6 flex-1 overflow-y-auto space-y-1 custom-scrollbar">
         <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4 px-2">Main Menu</div>
         
@@ -47,6 +47,7 @@ export default function Sidebar({ userName, userRole }: SidebarProps) {
             <Link 
               key={item.href} 
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive 
                   ? "bg-blue-800 text-white shadow-inner" 
