@@ -332,7 +332,7 @@ export default function AllocationsClient({
                         }
                         placeholder="0.00"
                         required
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white outline-none font-semibold text-indigo-600"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white outline-none font-semibold text-indigo-600"
                       />
                       <span className="text-[11px] text-gray-500 mt-0.5 block">Suggested: 1/12 annual share</span>
                     </div>
