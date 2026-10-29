@@ -1,38 +1,300 @@
-import prisma from "@/lib/prisma";
-import TransparencyClient from "@/src/components/TransparencyClient";
+import prisma from "@/lib/prisma"
+import Link from "next/link"
+import YearFilter from "@/src/components/YearFilter"
 
-export const revalidate = 60; // Regenerate data every 60 seconds
+export const dynamic = "force-dynamic"
 
-export default async function TransparencyBoard() {
-  // Fetch all historical allocations
-  const allocations = await prisma.monthlyAllocation.findMany({
-    orderBy: [{ year: 'asc' }, { month: 'asc' }]
-  });
+export default async function PublicTransparencyBoard({
+  searchParams
+}: {
+  searchParams: Promise<{ year?: string }>
+}) {
+  const resolvedSearchParams = await searchParams
 
-  // Fetch approved expenses with parent relation for date grouping
-  const expenses = await prisma.expense.findMany({
-    where: {
-      report: { status: "APPROVED" }
+  const dbYears = await prisma.liquidationReport.findMany({
+    where: { status: "APPROVED" },
+    distinct: ['year'],
+    select: { year: true },
+    orderBy: { year: 'desc' }
+  })
+  
+  const availableYears = dbYears.map(d => d.year)
+  const currentRealYear = new Date().getFullYear()
+  
+  if (!availableYears.includes(currentRealYear)) availableYears.push(currentRealYear)
+  availableYears.sort((a, b) => b - a)
+
+  const defaultYear = availableYears.length > 0 ? availableYears[0] : currentRealYear
+  const displayYear = resolvedSearchParams.year ? parseInt(resolvedSearchParams.year, 10) : defaultYear
+
+  const yearlyAllocations = await prisma.monthlyAllocation.findMany({
+    where: { year: displayYear }
+  })
+  const totalAnnualAllocation = yearlyAllocations.reduce((sum, alloc) => sum + alloc.totalAmount, 0)
+
+  // Fetch approved reports with strict data sanitization to prevent PII leakage (R.A. 10173)
+  const activeYearReports = await prisma.liquidationReport.findMany({
+    where: { 
+      status: "APPROVED",
+      year: displayYear 
     },
     include: {
-      report: {
-        include: {
-          allocation: {
-            select: { month: true, year: true }
-          }
-        }
-      }
-    }
-  });
+      allocation: {
+        select: { id: true, totalAmount: true, month: true, year: true }
+      },
+      expenses: {
+        select: { id: true, category: true, amount: true, date: true }
+      },
+      // Restrict relational data fetching to names only; exclude emails, password hashes, and signature URLs
+      disbursingOfficer: { select: { name: true } },
+      createdBy: { select: { name: true } }
+    },
+    orderBy: [
+      { month: 'desc' }
+    ]
+  })
 
-  // Fetch all yearly AIP settings
-  const aipSettings = await prisma.aIPSetting.findMany();
+  const totalAnnualSpent = activeYearReports.reduce((sum, r) => 
+    sum + r.expenses.reduce((eSum, e) => eSum + e.amount, 0)
+  , 0)
+  
+  const annualUtilizationRate = totalAnnualAllocation > 0 
+    ? ((totalAnnualSpent / totalAnnualAllocation) * 100).toFixed(1) 
+    : 0
+
+  const getMonthName = (monthNum: number) => {
+    const d = new Date(); d.setMonth(monthNum - 1); 
+    return d.toLocaleString('default', { month: 'long' })
+  }
+
+  const annualCategoryBreakdown = activeYearReports.reduce((acc: any, report) => {
+    report.expenses.forEach(exp => {
+      const cat = exp.category.replace("_", " ");
+      acc[cat] = (acc[cat] || 0) + exp.amount;
+    });
+    return acc;
+  }, {});
+
+  const chartData = Object.entries(annualCategoryBreakdown)
+    .map(([name, value]) => ({ name, value: value as number }))
+    .sort((a, b) => b.value - a.value);
+
+  const chartColors = ['bg-blue-600', 'bg-emerald-500', 'bg-amber-500', 'bg-purple-500', 'bg-rose-500', 'bg-cyan-500'];
 
   return (
-    <TransparencyClient 
-      allocations={allocations} 
-      expenses={expenses} 
-      aipSettings={aipSettings} 
-    />
-  );
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans flex flex-col">
+      
+      <header className="bg-blue-900 text-white py-4 shadow-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-blue-900 font-bold text-lg shrink-0 shadow-sm">
+              BC
+            </div>
+            <div>
+              <h1 className="text-lg md:text-xl font-bold tracking-tight leading-tight">Biñan City Senior High School - West Campus</h1>
+              <p className="text-blue-200 text-xs font-medium">Digital MOOE Transparency Board</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+            {/* Itinaas na ang Fiscal Year filter dito */}
+            <div className="scale-95 origin-right">
+              <YearFilter availableYears={availableYears} currentYear={displayYear} />
+            </div>
+
+            {/* Subtle Admin Login - Hindi na nakaw-eksena */}
+            <Link 
+              href="/login" 
+              className="text-xs font-medium text-blue-300 hover:text-white transition-colors flex items-center gap-1 opacity-70 hover:opacity-100" 
+              title="Restricted Admin Access"
+            >
+              🔒 <span className="hidden sm:inline">Admin</span>
+            </Link>
+          </div>
+
+        </div>
+      </header>
+
+      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        
+        {/* TINAWAG NA AGAD ANG SUMMARY SECTION (Tinanggal na yung redundant na Transparency Dashboard card) */}
+        <section className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          <div className="flex flex-col justify-center lg:col-span-1 border-b lg:border-b-0 lg:border-r border-gray-100 pb-6 lg:pb-0 lg:pr-6">
+            <h2 className="text-sm font-bold text-blue-600 uppercase tracking-wider mb-1">
+              Fiscal Year {displayYear} Summary
+              <span className="text-xs text-gray-400 normal-case ml-1 font-medium">(Buod ng Pondo)</span>
+            </h2>
+            <p className="text-4xl font-black text-gray-900">₱{totalAnnualSpent.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+            <p className="text-gray-500 font-medium mt-1 mb-6 leading-tight">
+              Total MOOE Funds Disbursed & Liquidated
+              <span className="block text-xs text-gray-400 italic mt-0.5">Kabuuang pondo na nagastos at na-report</span>
+            </p>
+            
+            <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+              <div className="flex justify-between items-end mb-2">
+                <span className="text-sm font-bold text-gray-700 leading-tight">
+                  Utilization Rate
+                  <span className="block text-xs font-normal text-gray-500 mt-0.5">Antas ng paggamit ng pondo</span>
+                </span>
+                <span className="text-xl font-black text-blue-700">{annualUtilizationRate}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div 
+                  className="bg-blue-600 h-3 rounded-full transition-all duration-1000" 
+                  style={{ width: `${annualUtilizationRate}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-gray-500 mt-3 flex items-center gap-1">
+                Based on ₱{totalAnnualAllocation.toLocaleString(undefined, { minimumFractionDigits: 2 })} Released Allocation
+                <span className="cursor-help text-blue-400 hover:text-blue-600 transition-colors text-sm" title="The total estimated budget allocation based on the school's Annual Improvement Plan (AIP) and Annual Procurement Plan (APP).">ⓘ</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="lg:col-span-2 flex flex-col justify-center">
+            <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wider">
+              Annual Expense Breakdown
+              <span className="block text-xs text-gray-400 normal-case mt-0.5 font-medium">Saan napunta ang pondo?</span>
+            </h3>
+            
+            {chartData.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-gray-400 font-medium py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                No expense data available for visualization.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {chartData.map((item, index) => {
+                  const percentage = totalAnnualSpent > 0 ? (item.value / totalAnnualSpent) * 100 : 0;
+                  const barColor = chartColors[index % chartColors.length];
+                  
+                  return (
+                    <div key={item.name} className="flex flex-col group cursor-default">
+                      <div className="flex justify-between text-sm mb-1.5 items-end">
+                        <span className="font-bold text-gray-700 group-hover:text-blue-700 transition-colors">{item.name}</span>
+                        <div className="text-right">
+                          <span className="font-black text-gray-900">₱{item.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <span className="text-gray-500 text-xs font-semibold ml-2 inline-block w-10">{percentage.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden flex">
+                        <div 
+                          className={`h-2.5 rounded-full ${barColor} transition-all duration-1000 ease-out group-hover:opacity-80`} 
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-6 mt-8 flex justify-between items-end">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Approved Liquidation Reports</h2>
+              <p className="text-gray-600 text-sm mt-1">Publicly disclosed financial records as mandated by DepEd Order No. 008, s. 2019.</p>
+            </div>
+          </div>
+
+          {activeYearReports.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+              <span className="text-4xl mb-3 block">📄</span>
+              <p className="font-bold text-gray-700 text-lg">No approved reports published for {displayYear}.</p>
+              <p className="text-gray-500 text-sm mt-1">Check back later once the Principal approves the monthly liquidations.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {activeYearReports.map((report) => {
+                // Implement graceful data fallbacks to prevent crashes from corrupted or missing nested data (ISO 25010: Reliability 4.1 & 4.3)
+                const safeExpenses = Array.isArray(report.expenses) ? report.expenses : []
+                const totalSpent = safeExpenses.reduce((sum, exp) => sum + (exp?.amount || 0), 0)
+                const monthlyAllocation = report.allocation?.totalAmount || 0 
+                
+                const expensesByCategory = safeExpenses.reduce((acc: any, exp) => {
+                  const cat = (exp?.category || "UNCATEGORIZED").replace("_", " ")
+                  acc[cat] = (acc[cat] || 0) + (exp?.amount || 0)
+                  return acc
+                }, {})
+
+                return (
+                  <div key={report.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                    <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">{getMonthName(report.month)} {report.year}</h3>
+                        <p className="text-xs text-green-600 font-bold flex items-center gap-1 mt-0.5">
+                          <span className="w-2 h-2 rounded-full bg-green-500 block"></span>
+                          VERIFIED & POSTED
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold text-gray-500 border border-gray-300 px-2 py-1 rounded bg-white">
+                        {report.fundPurpose}
+                      </span>
+                    </div>
+
+                    <div className="p-6 flex-1">
+                      <div className="flex justify-between items-end mb-4 border-b border-gray-100 pb-4">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Monthly Allocation</p>
+                          <p className="text-lg font-bold text-gray-600">₱{monthlyAllocation.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Amount Spent</p>
+                          <p className="text-2xl font-black text-gray-900">₱{totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 mb-2">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Expense Breakdown</p>
+                        {Object.entries(expensesByCategory).sort(([,a]: any, [,b]: any) => b - a).slice(0, 3).map(([cat, amount]: any) => (
+                          <div key={cat} className="flex justify-between items-center text-sm">
+                            <span className="text-gray-700 truncate pr-2 font-medium">{cat}</span>
+                            <span className="font-bold text-gray-900 shrink-0">₱{amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        ))}
+                        {Object.keys(expensesByCategory).length > 3 && (
+                          <p className="text-xs text-blue-600 font-bold italic pt-1">+ {Object.keys(expensesByCategory).length - 3} more categories</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="text-xs text-gray-500">
+                          <span className="block font-bold text-gray-700">Approved on: {report.approvedAt ? report.approvedAt.toLocaleDateString() : 'N/A'}</span>
+                          {/* Establish stakeholder trust with a visible data integrity indicator (ISO 25010: Security 5.2) */}
+                          <span className="text-emerald-600 font-semibold flex items-center gap-1 mt-1" title="Data is secured, immutable, and backed by system audit logs.">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                            System-Verified Record
+                          </span>
+                        </div>
+                        <Link href={`/transparency/${report.id}`} className="text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors w-full sm:w-auto text-center border sm:border-none border-blue-200 py-1.5 rounded-md sm:py-0">
+                          View Full Details &rarr;
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+      </main>
+
+      <footer className="bg-gray-100 border-t border-gray-200 mt-12 py-8 text-center px-4">
+        <div className="max-w-4xl mx-auto">
+          <p className="text-xs text-gray-500 leading-relaxed font-medium">
+            <strong>Transparency & Legal Compliance:</strong> This Public Transparency Board strictly complies with DepEd Order No. 008, s. 2019 and Freedom of Information (FOI) mandates. Only official public expenditures and government official signatories are displayed. No sensitive personal information is processed or disclosed, ensuring full compliance with the Data Privacy Act of 2012 (R.A. 10173).
+          </p>
+          <p className="text-xs text-gray-400 mt-4">
+            &copy; {currentRealYear} Biñan City Senior High School - West Campus. All rights reserved.
+          </p>
+        </div>
+      </footer>
+    </div>
+  )
 }

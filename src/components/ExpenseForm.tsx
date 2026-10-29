@@ -128,6 +128,7 @@ export default function ExpenseForm({
               <input
                 type="number"
                 step="0.01"
+                min="0.01"
                 required
                 className="border rounded-md p-2 focus:ring-2 focus:ring-blue-500 outline-none"
                 placeholder="0.00"

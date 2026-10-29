@@ -9,6 +9,7 @@ datasource db {
 // --- ENUMS ---
 
 enum Role {
+  SYSTEM_ADMIN
   PRINCIPAL
   DISBURSING_OFFICER
 }
@@ -17,6 +18,7 @@ enum ReportStatus {
   DRAFT
   PENDING
   APPROVED
+  REJECTED
 }
 
 enum ExpenseCategory {
@@ -35,188 +37,223 @@ enum AuditAction {
   SUBMIT
   APPROVE
   REJECT
+  LOGIN
+  LOGOUT
 }
 
 enum AIPPlanStatus {
   DRAFT
-  SUBMITTED
+  PENDING
   APPROVED
+}
+
+enum AdjustmentType {
+  REALLOCATION       // Reallocates funds between categories
+  ADDITIONAL_FUND    // Requests supplemental budget from the Division Office
+  RETURN_TO_DIVISION // Returns excess balance to the Division Office
 }
 
 // --- MODELS ---
 
-// System users (e.g., Principal, Disbursing Officer)
+// Core system users and role definitions
 model User {
-  id           String  @id @default(cuid())
-  name         String?
-  email        String? @unique
-  password     String? // Hashed password
-  role         Role    @default(DISBURSING_OFFICER)
-  signatureUrl String? // Path to the Principal's e-signature for reports
-
-  // Relationship: Reports created by a Disbursing Officer
-  reportsCreated  LiquidationReport[] @relation("CreatedBy")
-  // Relationship: Reports approved by a Principal
-  reportsApproved LiquidationReport[] @relation("ApprovedBy")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  auditLogs AuditLog[]
+  id                  String               @id @default(cuid())
+  name                String?
+  email               String?              @unique
+  password            String?
+  role                Role                 @default(DISBURSING_OFFICER)
+  signatureUrl        String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  
+  liquidationReports LiquidationReport[]   @relation("ReportDisbursingOfficer")
+  createdReports     LiquidationReport[]   @relation("ReportCreator")
+  adjustmentRequests  BudgetAdjustment[]   @relation("AdjustmentRequests")
+  adjustmentApprovals BudgetAdjustment[]   @relation("AdjustmentApprovals")
+  auditLogs           AuditLog[]
 }
 
-// Table for dynamic signatories (Appendix 44 selections)
+// Dynamic signatory profiles for Appendix 44 rendering
 model Signatory {
   id        String   @id @default(cuid())
   name      String
-  position  String   // Expected values: "PRINCIPAL", "ASDS", "SDS", "ACCOUNTANT"
+  position  String
+  box       String   @default("A")
   isActive  Boolean  @default(true)
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
+// Global percentage thresholds for Annual Improvement Plan (AIP) categories
 model AIPSetting {
-  id               String @id @default(cuid())
-  year             Int    @unique
-  // Target percentages (e.g., 0.30 for 30%)
-  utilitiesPercent Float  @default(0)
-  suppliesPercent  Float  @default(0)
-  repairsPercent   Float  @default(0)
-  travelPercent    Float  @default(0)
-  trainingPercent  Float  @default(0)
-  othersPercent    Float  @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(cuid())
+  year             Int      @unique
+  utilitiesPercent Float
+  suppliesPercent  Float
+  repairsPercent   Float
+  travelPercent    Float
+  trainingPercent  Float
+  othersPercent    Float
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
+// Annual Improvement Plan (AIP) parent record
+model AIPPlan {
+  id                String          @id @default(cuid())
+  year              Int             @unique
+  status            AIPPlanStatus   @default(DRAFT)
+  submittedAt       DateTime?
+  approvedAt        DateTime?
+  externalReference String?
+  budgetLines       AIPBudgetLine[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+// Category-specific budget allocations under an annual AIP plan
+model AIPBudgetLine {
+  id                 String              @id @default(cuid())
+  aipPlanId          String
+  aipPlan            AIPPlan             @relation(fields: [aipPlanId], references: [id], onDelete: Cascade)
+  category           ExpenseCategory
+  description        String
+  plannedAmount      Decimal
+  remarks            String?
+  
+  monthlyBudgetLines MonthlyBudgetLine[]
+  
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+// Monthly baseline distribution derived from the annual AIP budget
+model MonthlyBudgetLine {
+  id                String             @id @default(cuid())
+  aipBudgetLineId   String
+  aipBudgetLine     AIPBudgetLine      @relation(fields: [aipBudgetLineId], references: [id], onDelete: Cascade)
+  month             Int
+  year              Int
+  plannedAmount     Decimal
+  
+  adjustmentsAsSrc  BudgetAdjustment[] @relation("AdjustmentSource")
+  adjustmentsAsDst  BudgetAdjustment[] @relation("AdjustmentDestination")
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@unique([aipBudgetLineId, month, year])
+}
+
+// Tracks budget reallocations, supplemental funds, and returned excesses
+model BudgetAdjustment {
+  id                 String             @id @default(cuid())
+  adjustmentType     AdjustmentType     @default(REALLOCATION)
+  
+  sourceLineId       String?            // Funding source
+  sourceLine         MonthlyBudgetLine? @relation("AdjustmentSource", fields: [sourceLineId], references: [id])
+  
+  destinationLineId  String?            // Funding destination
+  destinationLine    MonthlyBudgetLine? @relation("AdjustmentDestination", fields: [destinationLineId], references: [id])
+  
+  amount             Decimal
+  reason             String
+  referenceDoc       String?            // E.g., OR Number or Division Memo
+  
+  requestedById      String
+  requestedBy        User               @relation("AdjustmentRequests", fields: [requestedById], references: [id])
+  
+  approvedById       String?
+  approvedBy         User?              @relation("AdjustmentApprovals", fields: [approvedById], references: [id])
+  
+  status             ReportStatus       @default(PENDING)
+  
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+// Aggregated monthly cash allocation for the school
 model MonthlyAllocation {
-  id          String @id @default(cuid())
-  month       Int // 1 to 12
+  id          String              @id @default(cuid())
+  month       Int
   year        Int
-  totalAmount Float // The actual cash allocation received for this month
-
-  // Link to the monthly report
-  reports LiquidationReport[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  totalAmount Float
+  reports     LiquidationReport[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@unique([month, year])
 }
 
-// Records of specific expenditures for liquidation
+// Main Liquidation Report (Appendix 44) containing metadata and signatory snapshots
 model LiquidationReport {
-  id                String       @id @default(cuid())
-  month             Int
-  year              Int
-  status            ReportStatus @default(DRAFT)
-  remarks           String?
-
-  // Appendix 44 Fields & Signatory Snapshots (Name & Position)
-  yearlySequence    Int       @default(1)
-  fundPurpose       String    @default("MOOE")
-  birDeduction      Float     @default(0)
-  dvNumber          String?
-  dvDate            DateTime?
-
-  principalName     String?
-  principalPosition String?   // Box A Position (e.g. Principal II)
-  asdsName          String?
-  asdsPosition      String?   // Box B Position (e.g. ASDS / OIC)
-  sdsName           String?
-  sdsPosition       String?   // Box B Position (e.g. Schools Division Superintendent)
-  accountantName    String?
-  accountantPosition String?  // Box C Position (e.g. Head, Accounting Division Unit)
+  id                  String            @id @default(cuid())
+  month               Int
+  year                Int
+  status              ReportStatus      @default(DRAFT)
+  remarks             String?
+  submittedAt         DateTime?
+  approvedAt          DateTime?
   
-  entityName        String    @default("BINAN CITY SENIOR HIGH SCHOOL-WEST CAMPUS")
-  fundCluster       String    @default("01")
-  centerCode        String    @default("070010804019")
-  // -----------------------------------
+  yearlySequence      Int               @default(1)
+  fundPurpose         String            @default("MOOE")
+  birDeduction        Float             @default(0)
+  dvNumber            String?
+  dvDate              DateTime?
+  
+  principalName       String?
+  principalPosition   String?
+  asdsName            String?
+  asdsPosition        String?
+  sdsName             String?
+  sdsPosition         String?
+  accountantName      String?
+  accountantPosition  String?
+  
+  entityName          String            @default("BINAN CITY SENIOR HIGH SCHOOL-WEST CAMPUS")
+  fundCluster         String            @default("01")
+  centerCode          String            @default("070010804019")
+  
+  allocationId        String
+  allocation          MonthlyAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  
+  disbursingOfficerId String?
+  disbursingOfficer   User?   @relation("ReportDisbursingOfficer", fields: [disbursingOfficerId], references: [id])
 
-  // Ownership and Approval
-  disbursingOfficerId String
-  disbursingOfficer   User   @relation("CreatedBy", fields: [disbursingOfficerId], references: [id])
+  createdById String?
+  createdBy   User?   @relation("ReportCreator", fields: [createdById], references: [id])
+  
+  expenses            Expense[]
+  
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
-  principalId String? // Populated upon approval
-  principal   User?   @relation("ApprovedBy", fields: [principalId], references: [id])
-
-  // Context: Total amount this report is drawing from
-  allocationId String
-  allocation   MonthlyAllocation @relation(fields: [allocationId], references: [id])
-
-  // Itemized data
-  expenses Expense[]
-
-  submittedAt DateTime? // When status changed from DRAFT to PENDING
-  approvedAt  DateTime? // When status changed to APPROVED
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@unique([month, year]) // Ensures only one report exists per month
+  @@unique([month, year])
 }
 
-// Represents individual expenditures drawn from the budget
+// Individual receipt/expense entries tied to a Liquidation Report
 model Expense {
-  id          String          @id @default(cuid())
-  description String // Itemized name/description
-  amount      Float
-  date        DateTime
+  id          String            @id @default(cuid())
+  reportId    String
+  report      LiquidationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   category    ExpenseCategory
-
-  // Link back to the parent report
-  reportId String
-  report   LiquidationReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  description String
+  amount      Float
+  taxAmount   Float             @default(0)
+  date        DateTime
+  
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
 }
 
-// Immutable ledger for tracking all system activities
+// Immutable ledger for tracking system activity
 model AuditLog {
-  id       String      @id @default(cuid())
-  action   AuditAction
-  entity   String // Represents the table name (e.g., LiquidationReport, Expense)
-  entityId String // The unique identifier of the modified record
-  details  String // Human-readable context of the transaction
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id])
-
-  createdAt DateTime @default(now())
-}
-
-model AIPPlan {
-  id     String        @id @default(cuid())
-  year   Int           @unique
-  status AIPPlanStatus @default(DRAFT)
-
-  submittedAt       DateTime?
-  approvedAt        DateTime?
-  externalReference String?
-
-  budgetLines AIPBudgetLine[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status, year])
-}
-
-model AIPBudgetLine {
-  id            String          @id @default(cuid())
-  description   String
-  category      ExpenseCategory
-  plannedAmount Decimal         @db.Decimal(15, 2)
-  remarks       String?
-
-  aipPlanId String
-  aipPlan   AIPPlan @relation(fields: [aipPlanId], references: [id], onDelete: Restrict)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([aipPlanId])
-  @@index([category])
+  id        String      @id @default(cuid())
+  action    AuditAction
+  entity    String
+  entityId  String?
+  details   String
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  createdAt DateTime    @default(now())
 }

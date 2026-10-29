@@ -1,126 +1,117 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { signIn, getSession } from 'next-auth/react'
+import { signIn } from "next-auth/react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  
-  const [isLoading, setIsLoading] = useState(false)
-  const [isCheckingSession, setIsCheckingSession] = useState(true)
-  const [error, setError] = useState('')
 
-  // Verify active session on mount and redirect authenticated users
-  useEffect(() => {
-    getSession().then((session) => {
-      if (session) {
-        router.replace('/dashboard')
-      } else {
-        setIsCheckingSession(false)
-      }
-    })
-  }, [router])
-
-  // Handle credentials authentication
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError('')
+    setLoading(true)
+    setError("")
 
-    const res = await signIn('credentials', {
-      redirect: false,
-      email: email,
-      password: password,
-    })
+    try {
+      const result = await signIn("credentials", {
+        redirect: false,
+        email,
+        password,
+      })
 
-    if (res?.error) {
-      setError('Mali ang email o password. Paki-check at subukan ulit.')
-      setIsLoading(false)
-    } else if (res?.ok) {
-      router.push('/dashboard')
+      if (result?.error) {
+        setError("Invalid email or password. Please try again.")
+        setLoading(false)
+      } else {
+        router.push("/dashboard")
+        router.refresh()
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.")
+      setLoading(false)
     }
   }
 
-  // Render loading state during session validation to prevent UI flashing
-  if (isCheckingSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500 font-medium">Sinusuri ang account...</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      {/* UX: Added lift and shadow transitions to the login card */}
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md border border-gray-100 transition-all duration-300 hover:shadow-xl">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">MOOE Portal</h1>
-          <p className="text-sm text-gray-500 mt-2 font-medium">Mag-login para i-manage ang budget</p>
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center">
+          <div className="w-16 h-16 bg-blue-900 text-white rounded-full flex items-center justify-center font-black text-2xl shadow-md">
+            BC
+          </div>
         </div>
+        <h2 className="mt-6 text-center text-2xl sm:text-3xl font-extrabold text-gray-950 tracking-tight">
+          MOOE Disclosure Portal
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Biñan City Senior High School - West Campus
+        </p>
+      </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
+        <div className="bg-white py-8 px-6 shadow-sm border border-gray-200 rounded-2xl sm:px-10">
+          
           {error && (
-            <div className="p-4 bg-red-50 text-red-700 text-sm font-medium rounded-lg border border-red-200 shadow-sm animate-pulse">
+            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm font-medium">
               {error}
             </div>
           )}
 
-          {/* UX: Proper label associations and dark input text */}
-          <div>
-            <label htmlFor="loginEmail" className="block text-sm font-bold text-gray-700 mb-1.5">Email Address</label>
-            <input 
-              id="loginEmail"
-              type="email" 
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow bg-gray-50 focus:bg-white"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@school.edu.ph"
-              required 
-              disabled={isLoading}
-            />
-          </div>
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@school.edu.ph"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
+              />
+            </div>
 
-          <div>
-            <label htmlFor="loginPassword" className="block text-sm font-bold text-gray-700 mb-1.5">Password</label>
-            <input 
-              id="loginPassword"
-              type="password" 
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow bg-gray-50 focus:bg-white"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required 
-              disabled={isLoading}
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-gray-900 outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
+              />
+            </div>
 
-          {/* UX: Button lift, pointer, and clear disabled states */}
-          <button 
-            type="submit" 
-            disabled={isLoading}
-            className={`w-full text-white font-bold py-3.5 rounded-xl transition-all duration-200 shadow-sm flex justify-center items-center text-lg ${
-              isLoading 
-                ? 'bg-blue-400 cursor-wait' 
-                : 'bg-blue-600 hover:bg-blue-700 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer'
-            }`}
-          >
-            {isLoading ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Naglo-load...
-              </>
-            ) : (
-              'Mag-login'
-            )}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-900 hover:bg-blue-800 text-white font-bold py-2.5 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+            >
+              {loading ? "Signing in..." : "Sign In to Portal"}
+            </button>
+          </form>
+
+          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
+            <a href="/" className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+              &larr; Return to Public Transparency Board
+            </a>
+          </div>
+        </div>
+
+        {/* Test Accounts Guide for Panelists / Evaluation */}
+        <div className="mt-6 bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs text-blue-900 space-y-1">
+          <p className="font-bold uppercase tracking-wider mb-1">Quick Credentials (for Testing):</p>
+          <p><strong>Principal:</strong> admin@school.edu.ph / admin123</p>
+          <p><strong>Disbursing Officer:</strong> disbursing@school.edu.ph / disbursing123</p>
+        </div>
       </div>
     </div>
   )

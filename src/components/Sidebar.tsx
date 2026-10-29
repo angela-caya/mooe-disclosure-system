@@ -1,76 +1,86 @@
-"use client";
+"use client"
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 interface SidebarProps {
-  userName: string;
-  userRole: string;
+  userName: string
+  userRole: string
 }
 
 export default function Sidebar({ userName, userRole }: SidebarProps) {
-  const pathname = usePathname();
+  const pathname = usePathname()
 
-  const disbursingLinks = [
-    { name: "Dashboard Overview", href: "/dashboard", icon: "📊" },
-    { name: "Budget & Expenses", href: "/dashboard/expenses", icon: "💸" },
-    { name: "System Settings", href: "/dashboard/settings", icon: "⚙️" },
-  ];
-
-  const principalLinks = [
-    { name: "Approval Dashboard", href: "/dashboard/principal", icon: "✅" },
-    { name: "AIP Settings", href: "/dashboard/principal/settings", icon: "📋" },
-    { name: "System Settings", href: "/dashboard/settings", icon: "⚙️" },
-    { name: "System Audit Logs", href: "/dashboard/principal/logs", icon: "📜" },
-  ];
-
-  const navLinks = userRole === "PRINCIPAL" ? principalLinks : disbursingLinks;
+  const navItems = [
+    { title: "Dashboard Overview", href: "/dashboard", icon: "📊", roles: ["PRINCIPAL", "DISBURSING_OFFICER", "SYSTEM_ADMIN"] },
+    { title: "Manage Expenses", href: "/dashboard/expenses", icon: "💸", roles: ["DISBURSING_OFFICER", "PRINCIPAL", "SYSTEM_ADMIN"] },
+    { title: "AIP / APP", href: "/dashboard/aip", icon: "📊", roles: ["SYSTEM_ADMIN", "PRINCIPAL", "DISBURSING_OFFICER"] },
+    // NEW: Budget Adjustments Menu
+    { title: "Budget Adjustments", href: "/dashboard/adjustments", icon: "🔄", roles: ["SYSTEM_ADMIN", "PRINCIPAL", "DISBURSING_OFFICER"] },
+    { title: "Approval Inbox", href: "/dashboard/approvals", icon: "⚖️", roles: ["PRINCIPAL"] },
+    { title: "Audit Logs", href: "/dashboard/audit", icon: "📜", roles: ["PRINCIPAL", "SYSTEM_ADMIN"] },
+    { title: "Settings", href: "/dashboard/settings", icon: "⚙️", roles: ["PRINCIPAL", "SYSTEM_ADMIN"] }
+  ]
 
   return (
-    <aside className="w-64 bg-blue-900 text-white flex flex-col min-h-screen shadow-xl print:hidden">
-      <div className="h-20 flex items-center justify-center border-b border-blue-800">
-        <h2 className="text-xl font-black tracking-wider text-white">
-          MOOE<span className="text-yellow-400"> PORTAL</span>
-        </h2>
+    <aside className="w-64 bg-blue-900 text-white flex flex-col h-screen sticky top-0 shadow-xl hidden md:flex">
+      <div className="p-4 sm:p-6 border-b border-blue-800 flex items-center gap-3">
+        <div className="w-9 sm:w-10 aspect-square rounded-full flex items-center justify-center overflow-hidden bg-white/20 backdrop-blur-sm shadow-sm shrink-0">
+          <img src="/logo.png" alt="Logo" className="w-full h-full object-contain m-auto p-1" />
+        </div>
+        <div className="overflow-hidden">
+          <h2 className="text-base sm:text-lg font-bold tracking-tight leading-tight">MOOE Portal</h2>
+          <p className="text-blue-300 text-[10px] mt-0.5">Biñan City SHS - West</p>
+        </div>
       </div>
 
-      <div className="p-6 border-b border-blue-800">
-        <p className="text-xs text-blue-300 uppercase tracking-wider font-semibold mb-1">Logged in as</p>
-        <p className="font-bold truncate">{userName}</p>
-        <span className="inline-block mt-2 px-2 py-1 bg-blue-800 text-xs rounded-md border border-blue-700">
-          {userRole.replace("_", " ")}
-        </span>
-      </div>
+      {/* Added custom-scrollbar class here */}
+      <div className="px-4 py-6 flex-1 overflow-y-auto space-y-1 custom-scrollbar">
+        <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4 px-2">Main Menu</div>
+        
+        {navItems.filter(item => item.roles.includes(userRole)).map((item) => {
+          const isActive = item.href === "/dashboard" 
+            ? pathname === "/dashboard" 
+            : pathname.startsWith(item.href)
 
-      <nav className="flex-1 px-4 py-6 space-y-2">
-        {navLinks.map((link) => {
-          const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
           return (
-            <Link
-              key={link.name}
-              href={link.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                isActive
-                  ? "bg-blue-800 text-white border-l-4 border-yellow-400 font-bold"
-                  : "text-blue-100 hover:bg-blue-800/50 hover:text-white font-medium"
+            <Link 
+              key={item.href} 
+              href={item.href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive 
+                  ? "bg-blue-800 text-white shadow-inner" 
+                  : "text-blue-100 hover:bg-blue-800/50 hover:text-white"
               }`}
             >
-              <span className="text-lg">{link.icon}</span>
-              {link.name}
+              <span className="text-lg">{item.icon}</span>
+              {item.title}
             </Link>
-          );
+          )
         })}
-      </nav>
 
-      <div className="p-4 border-t border-blue-800">
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors"
-        >
-          <span>🚪</span> Logout
-        </button>
+        <div className="mt-8">
+          <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-4 px-2">Public Links</div>
+          <Link href="/" target="_blank" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-blue-800/50 hover:text-white transition-colors">
+            <span className="text-lg">🌐</span> Transparency Board
+          </Link>
+        </div>
+      </div>
+
+      <div className="p-4 border-t border-blue-800 bg-blue-950/50">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-full bg-blue-700 flex items-center justify-center font-bold text-sm">
+            {userName.charAt(0)}
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-sm font-bold truncate">{userName}</p>
+            <p className="text-[10px] text-blue-300 uppercase tracking-wider">{userRole.replace("_", " ")}</p>
+          </div>
+        </div>
+        <Link href="/api/auth/signout" className="block w-full text-center bg-blue-800 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded transition-colors">
+          Sign Out
+        </Link>
       </div>
     </aside>
-  );
+  )
 }

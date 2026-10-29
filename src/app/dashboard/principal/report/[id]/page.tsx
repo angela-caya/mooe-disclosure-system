@@ -27,6 +27,7 @@ export default async function PrincipalReviewPage({
     include: {
       allocation: true,
       disbursingOfficer: true,
+      createdBy: { select: { name: true, email: true } },
       expenses: { orderBy: { date: 'asc' } }
     }
   });
@@ -47,7 +48,6 @@ export default async function PrincipalReviewPage({
       data: { 
         status: "APPROVED", 
         approvedAt: new Date(), 
-        principalId: principalId,
         remarks: null 
       }
     });
@@ -60,7 +60,9 @@ export default async function PrincipalReviewPage({
       `Certified and approved liquidation report for Month ${report!.allocation.month}`
     );
 
+    // Trigger on-demand cache invalidation for the public transparency board to reflect immediate approval
     revalidatePath(`/dashboard/principal`);
+    revalidatePath(`/transparency`, 'layout');
     redirect(`/dashboard/principal`);
   }
 
@@ -109,7 +111,15 @@ export default async function PrincipalReviewPage({
             Liquidation Review: {getMonthName(report.allocation.month)} {report.allocation.year}
           </h1>
           <p className="text-gray-600 mt-1">
-            Submitted by: <span className="font-semibold text-gray-800">{report.disbursingOfficer.name || report.disbursingOfficer.email}</span>
+            Prepared by: <span className="font-semibold text-gray-800">
+              {
+                report.createdBy?.name ||
+                report.disbursingOfficer?.name ||
+                report.createdBy?.email ||
+                report.disbursingOfficer?.email ||
+                "Not specified"
+              }
+            </span>
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -126,7 +136,7 @@ export default async function PrincipalReviewPage({
           <h3 className="font-bold text-gray-900 text-lg">Itemized Expense Breakdown</h3>
           
           {/* UX: Implemented the new One-Click Print Client Component */}
-          <PrintReportButton reportId={report.allocationId} />
+          {/* <PrintReportButton reportId={report.allocationId} /> */}
         </div>
         
         <div className="overflow-x-auto">

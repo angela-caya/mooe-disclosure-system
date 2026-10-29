@@ -46,6 +46,7 @@ export default async function PrincipalDashboard({
     include: { 
       allocation: true,
       disbursingOfficer: { select: { name: true, email: true } },
+      createdBy: { select: { name: true, email: true }, },
       expenses: true 
     },
     orderBy: { approvedAt: 'desc' }
@@ -67,6 +68,7 @@ export default async function PrincipalDashboard({
     include: {
       allocation: true,
       disbursingOfficer: { select: { name: true, email: true } },
+      createdBy: { select: { name: true, email: true } },
       expenses: true
     },
     orderBy: { submittedAt: 'asc' }
@@ -120,7 +122,7 @@ export default async function PrincipalDashboard({
             🌐 Public Board
           </Link>
           <Link 
-            href="/dashboard/principal/logs" 
+            href="/dashboard/audit/" 
             className="bg-gray-800 hover:bg-gray-900 text-white font-semibold py-2 px-6 rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer text-sm flex items-center"
           >
             📜 Audit Logs
@@ -195,7 +197,13 @@ export default async function PrincipalDashboard({
                           {getMonthName(report.allocation.month)} {report.allocation.year}
                         </td>
                         <td className="px-6 py-5 text-gray-600 align-top">
-                          <p className="font-semibold text-gray-900">{report.disbursingOfficer.name || report.disbursingOfficer.email}</p>
+                          <p className="font-semibold text-gray-900">{
+                            report.createdBy?.name ||
+                            report.disbursingOfficer?.name ||
+                            report.createdBy?.email ||
+                            report.disbursingOfficer?.email ||
+                            "Not specified"
+                          }</p>
                           <p className="text-xs text-gray-400 mt-1">Submitted: {report.submittedAt?.toLocaleDateString()}</p>
                         </td>
                         <td className="px-6 py-5 align-top">

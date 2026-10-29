@@ -1,151 +1,152 @@
-import prisma from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/src/app/api/auth/[...nextauth]/route";
-import { redirect, notFound } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { logSystemAction } from "@/lib/auditLogger";
-import Link from "next/link";
+import prisma from "@/lib/prisma"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../../../../../api/auth/[...nextauth]/route"
+import { redirect, notFound } from "next/navigation"
+import { revalidatePath } from "next/cache"
+import { logSystemAction } from "@/lib/auditLogger"
+import Link from "next/link"
 
 export default async function EditExpensePage({
   params
 }: {
-  params: Promise<{ id: string; expenseId: string }>
+  params: Promise<{ id: string, expenseId: string }>
 }) {
-  // Authenticate user session
-  const session = await getServerSession(authOptions);
-  if (!session) redirect('/login');
+  const session = await getServerSession(authOptions)
+  if (!session || session.user.role !== 'DISBURSING_OFFICER') {
+    redirect('/login')
+  }
 
-  // Resolve asynchronous route parameters
-  const resolvedParams = await params;
-  const allocationId = resolvedParams.id;
-  const expenseId = resolvedParams.expenseId;
+  const resolvedParams = await params
+  const { id: allocationId, expenseId } = resolvedParams
 
-  // Fetch the specific expense using the correct relational field name 'report'
+  // 1. Kunin ang Expense at siguraduhing hindi pa naka-lock ang Report
   const expense = await prisma.expense.findUnique({
     where: { id: expenseId },
     include: { report: true }
-  });
+  })
 
-  // Ensure the expense exists and the associated report is still in the draft phase
-  if (!expense || expense.report.status !== "DRAFT") {
-    notFound(); 
+  // Idinagdag ang "return" para malaman ng TypeScript na hihinto na ang execution dito
+  if (!expense || !expense.report) {
+    return notFound()
   }
 
-  // Process the update transaction and log the audit trail
+  // Kapag PENDING o APPROVED na, bawal na i-edit.
+  if (expense.report.status === "PENDING" || expense.report.status === "APPROVED") {
+    return (
+      <div className="p-8 max-w-2xl mx-auto text-center mt-10 bg-white rounded-xl shadow-sm border border-red-200">
+        <h2 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h2>
+        <p className="text-gray-600 mb-6">You cannot edit this expense because the liquidation report has already been submitted or approved.</p>
+        <Link href={`/dashboard/expenses/${allocationId}`} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+          &larr; Back to Expenses
+        </Link>
+      </div>
+    )
+  }
+
+  // I-extract ang report ID sa labas ng Server Action para ligtas basahin ng TypeScript
+  const reportId = expense.report.id
+  const reportMonth = expense.report.month
+  const reportYear = expense.report.year
+
   async function updateExpense(formData: FormData) {
     'use server'
-    const amount = parseFloat(formData.get("amount") as string);
-    const date = new Date(formData.get("date") as string);
-    
-    // Safely bypass the TypeScript enum constraint since the HTML select is already strictly validated
-    const category = formData.get("category") as any; 
-    const description = formData.get("description") as string;
+    const amount = parseFloat(formData.get("amount") as string)
+    const taxAmount = parseFloat(formData.get("taxAmount") as string) || 0
+    const category = formData.get("category") as any
+    const description = formData.get("description") as string
+    const date = new Date(formData.get("date") as string)
+
+    // ISO 1.3: Validate incorrect data inputs (negative amounts)
+    if (amount <= 0 || taxAmount < 0) {
+      throw new Error("Amounts must be greater than zero.")
+    }
 
     await prisma.expense.update({
       where: { id: expenseId },
-      data: { amount, date, category, description }
-    });
+      data: { category, amount, taxAmount, description, date }
+    })
+
+    // Recalculate Total Tax for the Report gamit ang na-extract na reportId
+    const allExpenses = await prisma.expense.findMany({
+      where: { reportId: reportId }
+    })
+    const totalTax = allExpenses.reduce((sum, exp) => sum + (exp.taxAmount || 0), 0)
+
+    await prisma.liquidationReport.update({
+      where: { id: reportId },
+      data: { birDeduction: totalTax }
+    })
 
     await logSystemAction(
       session!.user.id,
       "UPDATE",
-      "Expense",
+      `Expense (${reportMonth}-${reportYear})`,
       expenseId,
-      `Updated expense entry: ${description} (₱${amount})`
-    );
+      `Updated expense details: ${description} (₱${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })})`
+    )
 
-    revalidatePath(`/dashboard/expenses/${allocationId}`);
-    redirect(`/dashboard/expenses/${allocationId}`);
+    revalidatePath(`/dashboard/expenses/${allocationId}`)
+    redirect(`/dashboard/expenses/${allocationId}`)
   }
 
-  // Format the stored date for the HTML date input element
-  const formattedDate = expense.date.toISOString().split('T')[0];
-
   return (
-    <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6">
-      {/* UX: Improved back link with transition and proper coloring */}
-      <Link 
-        href={`/dashboard/expenses/${allocationId}`} 
-        className="text-sm font-semibold text-blue-600 hover:text-blue-800 hover:underline mb-2 inline-flex items-center transition-colors cursor-pointer"
-      >
-        &larr; Back to Expense List
-      </Link>
+    <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-6">
       
-      {/* UX: Added subtle hover shadow to the main card container */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-300">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <h1 className="text-xl font-bold text-gray-900 tracking-tight">Edit Expense Entry</h1>
-        </div>
-        
-        <form action={updateExpense} className="p-6 space-y-5">
-          <div>
-            <label htmlFor="editDate" className="block text-sm font-semibold text-gray-700 mb-1">Receipt Date</label>
-            <input 
-              id="editDate"
-              type="date" 
-              name="date" 
-              defaultValue={formattedDate}
-              required 
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow cursor-pointer"
-            />
+      <div className="mb-6">
+        <Link href={`/dashboard/expenses/${allocationId}`} className="text-sm text-blue-600 hover:text-blue-800 font-semibold hover:underline mb-2 inline-block transition-colors">
+          &larr; Back to Expenses
+        </Link>
+        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Edit Expense Record</h2>
+        <p className="text-sm text-gray-600 mt-1">Update the details of the selected receipt or disbursement.</p>
+      </div>
+
+      <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-200">
+        <form action={updateExpense} className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label htmlFor="expenseDate" className="block text-sm font-semibold text-gray-700 mb-1">Date on Receipt</label>
+              <input id="expenseDate" type="date" name="date" required defaultValue={expense.date.toISOString().split('T')[0]} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" />
+            </div>
+            <div>
+              <label htmlFor="expenseCategory" className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
+              <select id="expenseCategory" name="category" required defaultValue={expense.category} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+                <option value="UTILITIES">Utilities</option>
+                <option value="SUPPLIES">Supplies & Materials</option>
+                <option value="MINOR_REPAIRS">Minor Repairs</option>
+                <option value="TRAVEL">Travel Expenses</option>
+                <option value="TRAINING">Training & Seminars</option>
+                <option value="OTHERS">Others</option>
+              </select>
+            </div>
           </div>
 
           <div>
-            <label htmlFor="editCategory" className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-            <select 
-              id="editCategory"
-              name="category" 
-              defaultValue={expense.category}
-              required 
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow cursor-pointer"
-            >
-              <option value="UTILITIES">Utilities (Electricity, Water, Internet)</option>
-              <option value="SUPPLIES">Office & Instructional Supplies</option>
-              <option value="MINOR_REPAIRS">Minor Repairs</option> {/* FIX: Changed REPAIRS to MINOR_REPAIRS to match DB enum */}
-              <option value="TRAVEL">Travel & Transportation</option>
-              <option value="TRAINING">Training & Seminar Fees</option>
-              <option value="OTHERS">Other Expenses</option>
-            </select>
+            <label htmlFor="expenseDesc" className="block text-sm font-semibold text-gray-700 mb-1">Description / Payee</label>
+            <input id="expenseDesc" type="text" name="description" required defaultValue={expense.description} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" />
           </div>
 
-          <div>
-            <label htmlFor="editDesc" className="block text-sm font-semibold text-gray-700 mb-1">Description / Purpose</label>
-            <input 
-              id="editDesc"
-              type="text" 
-              name="description"
-              defaultValue={expense.description}
-              placeholder="e.g. Meralco Bill"
-              required 
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label htmlFor="expenseAmount" className="block text-sm font-semibold text-gray-700 mb-1">Gross Amount (₱)</label>
+              <input id="expenseAmount" type="number" name="amount" step="0.01"  min="0.01" required defaultValue={expense.amount} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" />
+            </div>
+            <div>
+              <label htmlFor="expenseTax" className="block text-sm font-semibold text-gray-700 mb-1">BIR Tax Withheld (₱)</label>
+              <input id="expenseTax" type="number" name="taxAmount" step="0.01"  min="0" defaultValue={expense.taxAmount} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" />
+            </div>
           </div>
-
-          <div>
-            <label htmlFor="editAmount" className="block text-sm font-semibold text-gray-700 mb-1">Amount (₱)</label>
-            <input 
-              id="editAmount"
-              type="number" 
-              step="0.01" 
-              name="amount"
-              defaultValue={expense.amount}
-              placeholder="0.00"
-              required 
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder:text-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow"
-            />
-          </div>
-
-          <div className="pt-4 flex justify-end">
-            {/* UX: Added lift animation and active state press to the primary action button */}
-            <button 
-              type="submit" 
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-6 rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
-            >
+          
+          <div className="pt-4 flex gap-3">
+            <Link href={`/dashboard/expenses/${allocationId}`} className="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2.5 rounded-lg transition-colors border border-gray-300">
+              Cancel
+            </Link>
+            <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-all">
               Save Changes
             </button>
           </div>
         </form>
       </div>
+
     </div>
-  );
+  )
 }

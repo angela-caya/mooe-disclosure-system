@@ -1,33 +1,38 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "../api/auth/[...nextauth]/route";
-import { redirect } from "next/navigation";
-import Sidebar from "@/src/components/Sidebar";
+import { getServerSession } from "next-auth"
+import { authOptions } from "../api/auth/[...nextauth]/route"
+import { redirect } from "next/navigation"
+import Sidebar from "@/src/components/Sidebar"
 
 export default async function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  // 1. Fetch the secure server session
-  const session = await getServerSession(authOptions);
+  const session = await getServerSession(authOptions)
 
-  if (!session || !session.user) {
-    redirect("/login");
+  if (!session) {
+    redirect('/login')
   }
-
-  // 2. Extract necessary user details
-  const userRole = session.user.role || "DISBURSING_OFFICER";
-  const userName = session.user.name || session.user.email || "User";
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Persistent Sidebar (Client Component) */}
-      <Sidebar userName={userName} userRole={userRole} />
+      <Sidebar 
+        userName={session.user.name || "User"} 
+        userRole={session.user.role} 
+      />
+      
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header (Shows only on small screens) */}
+        <header className="md:hidden bg-blue-900 text-white p-4 flex justify-between items-center shadow-md">
+          <h1 className="font-bold">MOOE Portal</h1>
+          <a href="/api/auth/signout" className="text-xs bg-blue-800 px-3 py-1.5 rounded font-medium">Sign Out</a>
+        </header>
 
-      {/* Main Content Area (Server & Client Pages inject here) */}
-      <main className="flex-1 h-screen overflow-y-auto">
-        {children}
-      </main>
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
-  );
+  )
 }

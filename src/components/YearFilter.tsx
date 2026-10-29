@@ -1,20 +1,14 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Suspense } from "react";
 
-export default function YearFilter({ 
-  availableYears, 
-  currentYear 
-}: { 
-  availableYears: number[], 
-  currentYear: number 
-}) {
+function FilterContent({ availableYears, currentYear }: { availableYears: number[], currentYear: number }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const selectedYear = searchParams.get("year") || currentYear.toString();
 
-  // Dynamically append the selected year parameter to the current active route
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     router.push(`${pathname}?year=${e.target.value}`);
   };
@@ -37,5 +31,13 @@ export default function YearFilter({
         ))}
       </select>
     </div>
+  );
+}
+
+export default function YearFilter({ availableYears, currentYear }: { availableYears: number[], currentYear: number }) {
+  return (
+    <Suspense fallback={<div className="h-10 w-48 bg-gray-100 animate-pulse rounded-lg"></div>}>
+      <FilterContent availableYears={availableYears} currentYear={currentYear} />
+    </Suspense>
   );
 }
