@@ -17,7 +17,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("Starting MOOE database seeding (Users Only)...");
 
-  await prisma.user.deleteMany(); 
+  // await prisma.user.deleteMany(); 
 
   const principalPassword = await bcrypt.hash("admin123", 10);
   const officerPassword = await bcrypt.hash("disbursing123", 10);

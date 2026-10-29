@@ -14,7 +14,7 @@ export default withAuth(
     }
 
     // Strict Rule 2: Only Disbursing Officers can access the data entry forms
-    if (path.startsWith("/dashboard/expenses") && token?.role !== "DISBURSING_OFFICER") {
+    if (path.startsWith("/dashboard/expenses") && token?.role !== "DISBURSING_OFFICER" && token?.role !== "PRINCIPAL") {
       // Kick Principals back to their approval dashboard
       return NextResponse.redirect(new URL("/dashboard/principal", req.url));
     }
