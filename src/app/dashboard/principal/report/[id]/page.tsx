@@ -62,7 +62,7 @@ export default async function PrincipalReviewPage({
 
     // Trigger on-demand cache invalidation for the public transparency board to reflect immediate approval
     revalidatePath(`/dashboard/principal`);
-    revalidatePath(`/transparency`, 'layout');
+    revalidatePath(`/`, 'layout');
     redirect(`/dashboard/principal`);
   }
 

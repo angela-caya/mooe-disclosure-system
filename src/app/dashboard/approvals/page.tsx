@@ -89,7 +89,7 @@ export default async function PrincipalApprovalInbox() {
     revalidatePath('/dashboard/approvals')
     revalidatePath('/dashboard/principal')
     if (action === "APPROVED") {
-      revalidatePath('/transparency', 'layout')
+      revalidatePath('/', 'layout')
     }
   }
 
@@ -141,6 +141,9 @@ export default async function PrincipalApprovalInbox() {
     });
 
     revalidatePath('/dashboard/approvals')
+    if (action === "APPROVED") {
+      revalidatePath('/', 'layout')
+    }
   }
 
   const getMonthName = (monthNum: number) => {

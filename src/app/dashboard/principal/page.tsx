@@ -115,7 +115,7 @@ export default async function PrincipalDashboard({
         <div className="flex gap-3">
           {/* UX: Added lift animation and pointer to primary top actions */}
           <Link 
-            href="/transparency" 
+            href="/" 
             target="_blank" 
             className="bg-white border border-gray-300 hover:border-gray-400 text-gray-700 font-semibold py-2 px-4 rounded-lg shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer text-sm flex items-center"
           >
