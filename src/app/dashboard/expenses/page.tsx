@@ -88,13 +88,13 @@ export default async function AllocationsIndexPage({
     const birDeduction = parseFloat(formData.get("birDeduction") as string) || 0;
 
     const [principalSig, sdsSig, accountantSig] = await Promise.all([
-      prisma.signatory.findFirst({ where: { isActive: true, box: "A", position: { contains: "Principal", mode: "insensitive" } } }),
-      prisma.signatory.findFirst({ where: { isActive: true, box: "B", OR: [{ position: { contains: "Superintendent", mode: "insensitive" } }] } }),
-      prisma.signatory.findFirst({ where: { isActive: true, box: "C", position: { contains: "Accounting", mode: "insensitive" } } }),
+      prisma.signatory.findFirst({ where: { isActive: true, box: "A" } }),
+      prisma.signatory.findFirst({ where: { isActive: true, box: "B" } }),
+      prisma.signatory.findFirst({ where: { isActive: true, box: "C" } }),
     ]);
 
     if (!principalSig || !accountantSig || !sdsSig) {
-      throw new Error("Missing active default or selected signatory. Check the Principal (Box A), SDS/OIC (Box B), and Accountant (Box C) settings.");
+      throw new Error("Missing active default signatories for Box A, Box B, or Box C. Please check your Signatory settings.");
     }
 
     // Execute database operations within a transaction to prevent orphaned allocations or missing reports
