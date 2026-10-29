@@ -15,8 +15,7 @@ export default async function HiddenPrintTemplate({
       reports: {
         include: { 
           expenses: { orderBy: { date: 'asc' } },
-          disbursingOfficer: true,
-          principal: true
+          disbursingOfficer: true
         }
       }
     }
@@ -56,7 +55,7 @@ export default async function HiddenPrintTemplate({
   // Serial No format: <year>-<month>-<number of liquidation this YEAR>
   const serialNo = `${report.year}-${report.month.toString().padStart(2, '0')}-${yearlySequence.toString().padStart(3, '0')}`;
 
-  const grossTotal = report.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const grossTotal = report.expenses.reduce((sum: number, exp: any) => sum + exp.amount, 0);
   const totalAmountSpent = grossTotal - birDeduction;
 
   return (
@@ -118,7 +117,7 @@ export default async function HiddenPrintTemplate({
             </tr>
 
             {/* Itemized Expenses */}
-            {report.expenses.map((expense) => (
+            {report.expenses.map((expense: any) => (
               <tr key={expense.id}>
                 <td className="border-r-2 border-black px-4 py-1">
                   {expense.category.replace(/_/g, " ")} {expense.description ? `- ${expense.description}` : ""}
@@ -218,7 +217,7 @@ export default async function HiddenPrintTemplate({
             
             <div className="mt-4 text-center flex-grow flex flex-col justify-end text-[11px]">
               <div className="font-bold uppercase underline underline-offset-4 decoration-[1.5px]">
-                {asdsName}I
+                {asdsName}
               </div>
               <div className="mt-1">Signature over Printed Name</div>
               <div>Assistant Schools Division Superintendent</div>
