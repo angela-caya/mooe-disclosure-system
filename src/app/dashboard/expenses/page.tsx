@@ -58,7 +58,7 @@ export default async function AllocationsIndexPage({
   const hasApprovedAip = aipPlan?.status === "APPROVED" && aipPlan.budgetLines.length > 0;
 
   // SERVER-SIDE RELIABILITY: Create Draft Report (Transaction Protection for multi-table inserts)
-  async function createDraft(formData: FormData) {
+  async function createDraft(formData: FormData): Promise<string> {
     'use server'
     const sessionContext = await getServerSession(authOptions);
     const activeUserId = sessionContext?.user?.id;
@@ -97,7 +97,9 @@ export default async function AllocationsIndexPage({
       throw new Error("Missing active default signatories for Box A, Box B, or Box C. Please check your Signatory settings.");
     }
 
-    // Execute database operations within a transaction to prevent orphaned allocations or missing reports
+    let targetAllocationId = "";
+
+    // Execute database operations within a transaction
     await prisma.$transaction(async (tx) => {
       let allocation = await tx.monthlyAllocation.findUnique({
         where: { month_year: { month, year } }
@@ -108,6 +110,8 @@ export default async function AllocationsIndexPage({
           data: { month, year, totalAmount }
         });
       }
+
+      targetAllocationId = allocation.id;
 
       const existingReport = await tx.liquidationReport.findUnique({
         where: { month_year: { month, year } }
@@ -137,6 +141,9 @@ export default async function AllocationsIndexPage({
     });
 
     revalidatePath("/dashboard/expenses");
+    
+    // Ibalik ang allocationId para magamit sa redirect
+    return targetAllocationId;
   }
 
   return (

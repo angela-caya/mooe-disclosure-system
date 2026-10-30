@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 interface AllocationsClientProps {
   allocations: any[];
   signatories: any[];
-  createDraft: (formData: FormData) => Promise<void>;
+  createDraft: (formData: FormData) => Promise<string>;
   selectedYear: number;
   availableYears: number[];
   userRole: string;
@@ -68,9 +68,21 @@ export default function AllocationsClient({
   }, [allocations, filters]);
 
   const handleCreateDraft = async (formData: FormData) => {
-    await createDraft(formData);
-    setIsModalOpen(false);
-    setUseDefaultSignatories(true); // Reset toggle
+    try {
+      // Dito natin matatanggap ang ID mula sa server action
+      const newAllocationId = await createDraft(formData);
+      
+      setIsModalOpen(false);
+      setUseDefaultSignatories(true);
+      
+      // Kung nakuha ang ID, direktang pumunta sa page ng bagong buwan!
+      if (newAllocationId) {
+        router.push(`/dashboard/expenses/${newAllocationId}`);
+      }
+    } catch (error) {
+      console.error("Failed to create draft:", error);
+      alert("May nangyaring error sa paggawa ng draft. Pakisuri ang mga nilagay.");
+    }
   };
 
   return (
