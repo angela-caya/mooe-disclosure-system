@@ -12,8 +12,8 @@ export default function SettingsClient({ signatories, updateSignatory }: Setting
   // Itinakda ang tamang default positions para sa bawat box
   const boxes = [
     { box: "A", title: "BOX A: School Head / Principal", defaultName: "", defaultPosition: "Principal II" },
-    { box: "B", title: "BOX B: Accounting Unit", defaultName: "", defaultPosition: "Head, Accounting Division Unit" },
-    { box: "C", title: "BOX C: Schools Division Superintendent", defaultName: "", defaultPosition: "Schools Division Superintendent" }
+    { box: "B", title: "BOX B: Schools Division Superintendent", defaultName: "", defaultPosition: "Schools Division Superintendent" },
+    { box: "C", title: "BOX C: Accounting Unit", defaultName: "", defaultPosition: "Head, Accounting Division Unit" }
   ]
 
   const getBoxData = (boxName: string) => {
